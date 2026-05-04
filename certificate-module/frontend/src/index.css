@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    html, body, #root { @apply h-full; }
+    body { @apply bg-bodybg text-muted font-sans text-[14px] leading-[20px] antialiased; }
+}
+
+@layer components {
+    .ol-card { @apply bg-white rounded-xl border border-border; }
+    .ol-card-body { @apply p-4; }
+
+    .ol-btn-primary {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5
+               bg-skin text-white text-[14px] font-medium transition-colors hover:bg-skin-dark;
+    }
+    .ol-btn-outline {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5
+               border border-border bg-white text-dark text-[14px] font-medium
+               transition-colors hover:border-skin hover:text-skin;
+    }
+    .ol-btn-danger {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2
+               bg-white border border-danger text-danger text-[13px] font-medium
+               transition-colors hover:bg-danger hover:text-white;
+    }
+    .ol-btn-warning {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5
+               bg-warning text-white text-[14px] font-medium transition-colors hover:opacity-90;
+    }
+    .ol-form-label { @apply mb-2 block text-[14px] font-medium text-dark; }
+    .ol-form-control { @apply w-full rounded-lg border border-border bg-white px-3 py-2 text-[14px] text-dark focus:outline-none focus:border-skin; }
+
+    .alert-success { @apply rounded-lg border border-green-200 bg-green-50 text-green-800 px-4 py-4; }
+    .alert-primary { @apply rounded-lg border border-blue-200 bg-blue-50 text-blue-800 px-4 py-4; }
+}
+
+/* Builder canvas frame and download view */
+.cert-canvas-frame {
+    background-image: radial-gradient(circle, #afafaf 1px, transparent 1px);
+    background-size: 10px 10px;
+    background-color: #e4e5ff;
+    padding: 24px;
+}
+.cert-stage { background: #fff; box-shadow: 0 4px 40px rgba(0,0,0,0.1); border-radius: 6px; overflow: hidden; }
+.cert-preview-wrap { width: 60%; min-width: 350px; margin: 0 auto; padding-top: 60px; }
+.download-btn {
+    position: fixed; bottom: 16px; right: 16px; padding: 16px 28px; border-radius: 8px;
+    color: #3d9bff; background: #d3e8ff; z-index: 100;
+}
+.absolute-view {
+    background: #fff; position: fixed; inset: 0; overflow-y: auto; z-index: 50; width: 100%;
+}
+
+/* Builder — mirrors admin/certificate/builder.blade.php */
+
+/* Full-page dotted background canvas (replaces .dotted-background in the blade) */
+.builder-page {
+    position: fixed; inset: 0; overflow: auto; z-index: 100;
+    background-image: radial-gradient(circle, #afafaf 1px, transparent 1px);
+    background-size: 10px 10px; background-color: #e4e5ff;
+    padding: 10px;
+    font-family: 'Roboto', sans-serif;
+}
+
+/* Sidebar pinned to the right (.sidebar / .sidebar.open in the blade) */
+.builder-sidebar {
+    position: fixed; top: 0; bottom: 0; right: -300px;
+    width: 300px; height: 100%; z-index: 200;
+    background: #fff;
+    transition: right .25s ease;
+    display: flex; flex-direction: column;
+}
+.builder-sidebar.open { right: 0; }
+
+/* Top toggle button (.sidebar-toggle in the blade) */
+.builder-toggle {
+    position: fixed; top: 10px; right: 10px; z-index: 150;
+    width: 40px; height: 40px; cursor: pointer; background: transparent; border: none; padding: 0;
+}
+
+/* Sidebar header & body (.sidebar-header / .sidebar-body) */
+.builder-sidebar-header {
+    width: 100%; padding: 10px;
+    border-bottom: 1px solid #dee2e6;
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 500;
+}
+.builder-sidebar-body { flex: 1; overflow-y: auto; }
+
+/* Cards inside the sidebar (Bootstrap .card .card-body shape) */
+.builder-card { margin: 8px; padding: 8px; border: none; }
+.builder-card-title { font-size: 14px; font-weight: 600; margin-top: 12px; margin-bottom: 8px; color: #1f2733; }
+
+/* Variable badges (.badge.bg-secondary.rounded-1) */
+.var-badge {
+    display: inline-block; margin: 2px; padding: 4px 8px; font-size: 12px;
+    color: #fff; background: #6c757d; border-radius: 4px; cursor: pointer;
+    border: none; transition: background-color .2s;
+}
+.var-badge:hover { background: #1fb6a6; }
+
+/* Form controls (Bootstrap .form-control / .form-label) */
+.builder-form-label { display: block; margin-bottom: 6px; font-size: 13px; color: #1f2733; }
+.builder-form-control {
+    width: 100%; padding: 6px 12px; font-size: 14px; line-height: 1.5;
+    color: #212529; background: #fff; border: 1px solid #ced4da; border-radius: 4px;
+}
+.builder-form-control:focus { outline: 0; border-color: #86b7fe; box-shadow: 0 0 0 0.25rem rgba(13,110,253,.25); }
+
+/* Buttons in sidebar (.ol-btn-light-primary / .ol-btn-primary in the blade) */
+.builder-btn-light {
+    width: 100%; padding: 8px 16px; font-size: 14px; font-weight: 500;
+    background: #f4fef7; color: #169f48; border: 1px solid #169f48;
+    border-radius: 6px; cursor: pointer; transition: all .2s;
+}
+.builder-btn-light:hover { background: #169f48; color: #fff; }
+.builder-btn-primary {
+    width: 100%; padding: 8px 16px; font-size: 14px; font-weight: 500;
+    background: #169f48; color: #fff; border: 1px solid #169f48;
+    border-radius: 6px; cursor: pointer; transition: all .2s;
+}
+.builder-btn-primary:hover { background: #0f7f3a; }
+
+/* Certificate canvas container — keeps the same id the blade uses. */
+.cert-builder-canvas {
+    position: relative; padding-left: 10px; padding-top: 10px;
+}
+
+/* Layout module (.certificate-layout-module / .resizeable-canvas / .draggable) */
+.certificate-layout-module {
+    position: relative; background-color: #fff; margin: 0 auto;
+    box-shadow: 1px 3px 11px -4px #565656; border-radius: 5px;
+    user-select: none;
+}
+
+/* Draggable items inside the canvas */
+.cert-builder-canvas .draggable {
+    position: absolute;
+    border: 2px dashed rgb(255, 255, 255);
+    cursor: move;
+    background-color: #15b57e33;
+    padding: 5px !important;
+    user-select: none;
+}
+.cert-builder-canvas .draggable.is-active {
+    border-color: #1fb6a6;
+}
+.cert-builder-canvas .draggable.hidden-position {
+    background-color: #ffd3d3 !important;
+}
+
+/* Remove-item × button */
+.cert-builder-canvas .remove-item {
+    position: absolute; top: -20px; right: -17px;
+    background: #fff; border-radius: 50%;
+    height: 20px; width: 20px; padding: 0;
+    font-size: 16px; line-height: 18px; text-align: center;
+    border: 1px solid #ef3f6e; color: #ef3f6e; cursor: pointer;
+}

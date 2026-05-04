@@ -16,7 +16,13 @@ const registerSchema = z.object({
   phone: z.string().min(10).max(15),
   dob: z.string().min(10).max(10),
   gender: z.enum(['male', 'female']),
-  role: z.enum(['student', 'instructor', 'admin', 'auditor']).optional()
+  role: z.enum(['student', 'instructor', 'admin', 'auditor']).optional(),
+  // === Academic Information (all optional) ===
+  educationLevel: z.enum(['inter', 'bachelor', 'master', 'phd', 'other']).optional().or(z.literal('')),
+  branch: z.string().optional(),
+  collegeName: z.string().optional(),
+  graduationYear: z.string().optional(),
+  collegeCode: z.string().optional()
 });
 
 const loginSchema = z.object({
@@ -44,21 +50,16 @@ async function issueTokens(user, res) {
   await user.save();
 
   // === Set cookies ===
-  res.cookie("accessToken", accessToken, {
+  const isProd = process.env.NODE_ENV === 'production';
+  const cookieOpts = {
     httpOnly: true,
-    secure: true, // true for HTTPS
-    sameSite: "None",
-    path: "/",
-    maxAge: 60 * 60 * 1000 // 1 hour
-  });
+    secure: isProd,
+    sameSite: isProd ? 'None' : 'Lax',
+    path: '/',
+  };
 
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: true, // true for HTTPS
-    sameSite: "None",
-    path: "/",
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-  });
+  res.cookie('accessToken', accessToken, { ...cookieOpts, maxAge: 60 * 60 * 1000 });
+  res.cookie('refreshToken', refreshToken, { ...cookieOpts, maxAge: 7 * 24 * 60 * 60 * 1000 });
 
   return {
     accessToken,
@@ -70,7 +71,13 @@ async function issueTokens(user, res) {
       phone: user.phone,
       dob: user.dob,
       gender: user.gender,
-      role: role ? role.role : null
+      role: role ? role.role : null,
+      collegeId: user.collegeId,
+      orgId: user.orgId,
+      branchId: user.branchId,
+      yearOfEducation: user.yearOfEducation,
+      yearOfStudy: user.yearOfStudy,
+      programInterested: user.programInterested
     }
   };
 }
@@ -107,7 +114,13 @@ export async function register(req, res) {
       phone: data.phone,
       dob: data.dob,
       gender: data.gender,
-      roleId: role.roleId
+      roleId: role.roleId,
+      // Academic Information (optional — stored only if provided)
+      educationLevel: data.educationLevel || null,
+      branch: data.branch || null,
+      collegeName: data.collegeName || null,
+      graduationYear: data.graduationYear || null,
+      collegeCode: data.collegeCode || null
     });
 
     const result = await issueTokens(user, res);
@@ -191,15 +204,19 @@ export async function profile(req, res) {
 
 export async function updateProfile(req, res) {
   try {
-    const user = await User.findByPk(req.user.id);
+    const user = await User.findOne({ where: { userId: req.user.id } });
+
+    console.log(user);
+    
+
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     // Update user profile
-    const { email, phone, dob, gender } = req.body;
+    const { name,email, phone, dob } = req.body;
+    user.name = name || user.name;
     user.email = email || user.email;
     user.phone = phone || user.phone;
     user.dob = dob || user.dob;
-    user.gender = gender || user.gender;
 
     await user.save();
     return res.json(user);
@@ -211,7 +228,8 @@ export async function updateProfile(req, res) {
 // update educational details
 export async function updateEducation(req, res) {
   try {
-    const user = await User.findByPk(req.user.id);
+    const user = await User.findOne({ where: { userId: req.user.id } });
+
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const { yearOfEducation, yearOfStudy, programInterested } = req.body;
@@ -238,7 +256,8 @@ export async function updateEducation(req, res) {
 // update organization/college/branch details
 export async function updateOrgClgBranch(req, res) {
   try {
-    const user = await User.findByPk(req.user.id);
+    const user = await User.findOne({ where: { userId: req.user.id } });
+
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const { orgId, collegeId, branchId } = req.body;
@@ -261,6 +280,59 @@ export async function updateOrgClgBranch(req, res) {
     return res.status(500).json({ error: err.message });
   }
 }
+
+export async function preScore(req, res) {
+  try {
+    const user = await User.findOne({ where: { userId: req.user.id } });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const { preScore } = req.body;
+
+    user.preScore = preScore;
+    await user.save();
+
+    return res.status(200).json({
+      message: "Pre-assessment score updated successfully",
+      preScore: user.preScore,
+    });
+
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+export async function postScore(req, res) {
+  try {
+    const user = await User.findOne({ where: { userId: req.user.id } });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const { postScore } = req.body;
+
+    if (postScore === undefined) {
+      return res.status(400).json({ message: "postScore is required" });
+    }
+
+    user.postScore = postScore;
+    await user.save();
+
+    return res.status(200).json({
+      message: "Post-assessment score updated successfully",
+      postScore: user.postScore,
+    });
+
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+
+
 
 export async function changePassword(req, res) {
   try {

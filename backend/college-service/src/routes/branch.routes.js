@@ -7,7 +7,7 @@ const router = Router();
 
 // Branch management
 router.post("/add", isLoggedIn, authRoles(["admin"]), controller.addBranch);
-router.get("/all", isLoggedIn, authRoles(["admin", "user"]), controller.getAllBranches);
+router.get("/all", isLoggedIn, authRoles(["admin", "user", "student", "instructor"]), controller.getAllBranches);
 router.put("/update/:branchId", isLoggedIn, authRoles(["admin"]), controller.updateBranch);
 router.delete("/delete/:branchId", isLoggedIn, authRoles(["admin"]), controller.deleteBranch);
 

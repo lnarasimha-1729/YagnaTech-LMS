@@ -6,41 +6,57 @@ export default class HealthMonitor {
     this.statusMap = {};
   }
 
-  async checkAll() {
-    const results = {};
+  async checkOne(name) {
+    const service = this.serviceMap[name];
+    if (!service) return null;
+    try {
+      const res = await axios.get(`http://${service.host}:${service.port}/health`, { timeout: 2000 });
+      const status = { healthy: true, lastChecked: new Date(), details: res.data };
+      this.statusMap[name] = status;
+      return status;
+    } catch (err) {
+      const status = {
+        healthy: false,
+        lastChecked: new Date(),
+        error: err.message || err.code || String(err),
+      };
+      this.statusMap[name] = status;
+      return status;
+    }
+  }
 
-    for (const [name, service] of Object.entries(this.serviceMap)) {
-      try {
-        // development.....
-        const res = await axios.get(`http://${service.host}:${service.port}/health`, { timeout: 2000 });
-        // production......
-        // const res = await axios.get(`https://${service.host}:${service.port}/health`, { timeout: 2000 });
-        results[name] = {
-          healthy: true,
-          lastChecked: new Date(),
-          details: res.data
-        };
-      } catch (err) {
-        results[name] = {
-          healthy: false,
-          lastChecked: new Date(),
-          error: err.message
-        };
+  async checkAll() {
+    // Probe in parallel — sequential probes made startup take O(N * timeout).
+    const names = Object.keys(this.serviceMap);
+    await Promise.all(names.map((n) => this.checkOne(n)));
+    return this.statusMap;
+  }
+
+  // Get the latest status of a specific service. If marked unhealthy and the
+  // last check is older than `maxAgeMs`, transparently re-probe so the caller
+  // sees the current truth rather than a stale negative cache. This is what
+  // gives services automatic recovery — start college-service after Bastion
+  // and the next request to /college/* re-probes and starts forwarding.
+  getStatus(serviceName, { autoRefreshIfDownMs = 5000 } = {}) {
+    const status = this.statusMap[serviceName];
+    if (!status) return null;
+    if (!status.healthy) {
+      const age = Date.now() - new Date(status.lastChecked).getTime();
+      if (age > autoRefreshIfDownMs) {
+        // Fire-and-forget: don't block the current request, but the next one
+        // (a few hundred ms later) will see the refreshed state.
+        this.checkOne(serviceName).catch(() => {});
       }
     }
-
-    this.statusMap = results;
-    return results;
+    return status;
   }
 
-    // Get the latest status of a specific service
-  getStatus(serviceName) {
-    return this.statusMap[serviceName] || null;
-  }
-
-   // run periodic checks
-  // startMonitoring(intervalMs = 30000) { // default every 30s
-  startMonitoring(intervalMs = 7200000) { // default every 2hrs
+  // Run periodic checks. Default 30s — short enough that a service that came
+  // up between probes is reflected before users notice, long enough that the
+  // probe traffic is negligible. The per-request lazy refresh in getStatus()
+  // is the real recovery mechanism; this interval is the safety net for
+  // services that aren't being actively used.
+  startMonitoring(intervalMs = 30000) {
     // run immediately
     this.checkAll();
 

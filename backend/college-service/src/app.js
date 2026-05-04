@@ -17,9 +17,23 @@ dotenv.config()
 
 const app = express();
 
-app.use(cors({ 
-  origin: process.env.CORS_ORIGIN || '*',
-  credentials: true, // allow cookies
+// CORS: with credentials:true the browser rejects an Allow-Origin of "*", so
+// we must echo a specific origin. CORS_ORIGIN can be a single value or a
+// comma-separated allowlist; in dev we default to the Vite ports the
+// frontend can come up on. Anything outside the list gets no CORS headers
+// (the browser then blocks the request, which is the safe failure mode).
+const allowedOrigins = (process.env.CORS_ORIGIN && process.env.CORS_ORIGIN !== '*')
+  ? process.env.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean)
+  : ['http://localhost:8080', 'http://localhost:8081', 'http://localhost:5173'];
+
+app.use(cors({
+  origin: (origin, cb) => {
+    // Same-origin / curl / server-to-server: no Origin header — allow.
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(null, false);
+  },
+  credentials: true,
 }));
 
 app.use(helmet());

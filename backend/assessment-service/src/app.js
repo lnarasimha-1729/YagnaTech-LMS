@@ -18,9 +18,15 @@ dotenv.config()
 
 const app = express();
 
-app.use(cors({ 
-  origin: process.env.CORS_ORIGIN || '*',
-  credentials: true, // allow cookies
+const allowedOrigin = (origin, cb) => {
+  if (!origin) return cb(null, true);
+  if (/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) return cb(null, true);
+  return cb(new Error('Not allowed by CORS'));
+};
+
+app.use(cors({
+  origin: allowedOrigin,
+  credentials: true,
 }));
 
 app.use(helmet());

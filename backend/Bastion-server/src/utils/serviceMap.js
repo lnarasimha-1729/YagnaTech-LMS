@@ -29,7 +29,14 @@ const serviceMap = {
     host: process.env.PAYMENT_SERVICE_HOST || 'localhost',
     port: process.env.PAYMENT_SERVICE_PORT || 8006,
   },
-  
+  admin: {
+    path: 'admin',
+    host: process.env.ADMIN_SERVICE_HOST || 'localhost',
+    port: process.env.ADMIN_SERVICE_PORT || 8007,
+    stripPrefix: '/api/v1/admin',
+    forwardPrefix: '/api',
+  },
+
 };
 
 export default serviceMap;

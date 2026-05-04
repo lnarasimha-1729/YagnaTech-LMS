@@ -1,4 +1,4 @@
-import { DataTypes } from 'sequelize';
+import { DataTypes, INTEGER } from 'sequelize';
 import sequelize from '../index.js';
 import Role from './Role.js';
 
@@ -29,17 +29,38 @@ const User = sequelize.define('User', {
   gender: { 
     type: DataTypes.ENUM('male', 'female') 
   },
-  yearOfEducation: { 
-    type: DataTypes.STRING 
-  },
-  branchId: { 
-    type: DataTypes.STRING 
-  },
-  collegeId: { 
+  yearOfEducation: {
     type: DataTypes.STRING
   },
-  yearOfStudy: { 
-    type: DataTypes.INTEGER 
+  branchId: {
+    type: DataTypes.STRING
+  },
+  collegeId: {
+    type: DataTypes.STRING
+  },
+  yearOfStudy: {
+    type: DataTypes.INTEGER
+  },
+  // === Academic Information (optional signup fields) ===
+  educationLevel: {
+    type: DataTypes.ENUM('inter', 'bachelor', 'master', 'phd', 'other'),
+    allowNull: true
+  },
+  branch: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  collegeName: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  graduationYear: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  collegeCode: {
+    type: DataTypes.STRING,
+    allowNull: true
   },
   orgId: { 
     type: DataTypes.STRING 
@@ -59,6 +80,12 @@ const User = sequelize.define('User', {
   },
   lastLogin: { 
     type: DataTypes.DATE 
+  },
+  preScore: {
+    type : DataTypes.INTEGER
+  },
+  postScore: {
+    type : INTEGER
   },
   refreshToken: {  
     type: DataTypes.STRING(1024),

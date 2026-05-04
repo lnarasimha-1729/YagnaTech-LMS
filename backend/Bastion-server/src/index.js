@@ -9,15 +9,15 @@ import cors from 'cors';
 
 import rateLimiter from './middlewares/rateLimiter.js';
 import routes from './routes/index.js';
+import { bastionAllowedOrigins } from './utils/cors.js';
 
 dotenv.config();
 
 const app = express();
 
 // Middlewares
-app.use(helmet());
 app.use(cors({
-  origin: "http://localhost:8080",
+  origin: bastionAllowedOrigins,
   credentials: true,
 }));
 app.use(express.json());
