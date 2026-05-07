@@ -7,6 +7,21 @@
 //
 // Origins come from BASTION_ALLOWED_ORIGINS (comma-separated) plus a small
 // set of local dev defaults so `npm run dev` keeps working without env vars.
+// const fromEnv = (process.env.BASTION_ALLOWED_ORIGINS || '')
+//   .split(',')
+//   .map((s) => s.trim())
+//   .filter(Boolean);
+
+// const devDefaults = [
+//   'http://localhost:8080',
+//   'http://localhost:8081',
+//   'http://localhost:5173',
+// ];
+
+// export const bastionAllowedOrigins = Array.from(
+//   new Set([...devDefaults, ...fromEnv])
+// );
+
 const fromEnv = (process.env.BASTION_ALLOWED_ORIGINS || '')
   .split(',')
   .map((s) => s.trim())
@@ -16,6 +31,7 @@ const devDefaults = [
   'http://localhost:8080',
   'http://localhost:8081',
   'http://localhost:5173',
+  'http://13.235.24.234'
 ];
 
 export const bastionAllowedOrigins = Array.from(
