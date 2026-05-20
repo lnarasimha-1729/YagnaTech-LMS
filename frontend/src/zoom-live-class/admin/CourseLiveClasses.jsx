@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'react-toastify';
+import { BsThreeDotsVertical } from 'react-icons/bs';
 import Modal from '@/admin/components/Modal';
 import ConfirmDialog from '@/admin/components/ConfirmDialog';
 import { API_BASE } from '@/admin/api/client';
@@ -106,6 +108,136 @@ const StatusBadge = ({ status }) => {
             {isLive && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />}
             {label}
         </span>
+    );
+};
+
+// Row action menu — a 3-vertical-dots kebab that opens Start / Edit / Delete.
+//
+// Matches the dropdown behaviour of the other admin list pages (Courses,
+// Students, Coupons …): the menu is portal-rendered at `position: fixed`
+// coords so the table's `overflow-x-auto` can't clip it, and it closes on
+// outside-click, Escape, or scroll/resize.
+const ActionsMenu = ({ liveClass, completed, joining, onStart, onEdit, onDelete }) => {
+    const [open, setOpen] = useState(false);
+    const [coords, setCoords] = useState({ top: 0, left: 0 });
+    const triggerRef = useRef(null);
+    const menuRef = useRef(null);
+
+    useEffect(() => {
+        if (!open) return undefined;
+        const el = triggerRef.current;
+        if (el) {
+            const rect = el.getBoundingClientRect();
+            const MENU_WIDTH = 180;
+            const ESTIMATED_MENU_HEIGHT = 140; // 3 items × ~44px + padding
+            const GAP = 4;
+
+            // Right-align the menu under the trigger, clamped to the viewport.
+            let left = rect.right - MENU_WIDTH;
+            if (left < 8) left = 8;
+            if (left + MENU_WIDTH > window.innerWidth - 8) {
+                left = window.innerWidth - MENU_WIDTH - 8;
+            }
+
+            // Open below by default; flip above when there isn't room.
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const spaceAbove = rect.top;
+            let top;
+            if (spaceBelow >= ESTIMATED_MENU_HEIGHT + GAP || spaceBelow >= spaceAbove) {
+                top = rect.bottom + GAP;
+            } else {
+                top = rect.top - ESTIMATED_MENU_HEIGHT - GAP;
+                if (top < 8) top = 8;
+            }
+            setCoords({ top, left });
+        }
+
+        const onDocClick = (e) => {
+            if (triggerRef.current?.contains(e.target)) return;
+            if (menuRef.current?.contains(e.target)) return;
+            setOpen(false);
+        };
+        const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+        const onScroll = () => setOpen(false);
+        const onResize = () => setOpen(false);
+        // Capture phase so scrolls on inner containers also dismiss the menu.
+        window.addEventListener('scroll', onScroll, true);
+        window.addEventListener('resize', onResize);
+        document.addEventListener('mousedown', onDocClick);
+        document.addEventListener('keydown', onKey);
+        return () => {
+            window.removeEventListener('scroll', onScroll, true);
+            window.removeEventListener('resize', onResize);
+            document.removeEventListener('mousedown', onDocClick);
+            document.removeEventListener('keydown', onKey);
+        };
+    }, [open]);
+
+    const run = (fn) => () => { setOpen(false); fn(); };
+
+    return (
+        <div className="relative inline-block text-left">
+            <button
+                ref={triggerRef}
+                type="button"
+                onClick={() => setOpen((o) => !o)}
+                title="Actions"
+                aria-label="Actions"
+                aria-haspopup="menu"
+                aria-expanded={open}
+                className="inline-flex items-center justify-center w-8 h-8 rounded-ol-8 border border-border text-gray hover:border-skin hover:text-skin"
+            >
+                <BsThreeDotsVertical className="text-[16px]" />
+            </button>
+            {open && createPortal(
+                <ul
+                    ref={menuRef}
+                    role="menu"
+                    style={{ position: 'fixed', top: coords.top, left: coords.left }}
+                    className="z-[1000] min-w-[180px] bg-white border border-border rounded-ol-8 shadow-lg py-1 text-[13px]"
+                >
+                    <li>
+                        <button
+                            type="button"
+                            role="menuitem"
+                            onClick={run(() => onStart(liveClass.id))}
+                            disabled={completed || joining}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-skin hover:bg-lightgreen disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            {joining ? (
+                                <i className="fa fa-spinner fa-spin" />
+                            ) : (
+                                <span className="fi-rr-video-camera" />
+                            )}
+                            <span>{completed ? 'Class ended' : 'Start live class'}</span>
+                        </button>
+                    </li>
+                    <li>
+                        <button
+                            type="button"
+                            role="menuitem"
+                            onClick={run(() => onEdit(liveClass))}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-dark hover:bg-gray-50"
+                        >
+                            <span className="fi-rr-pencil" />
+                            <span>Edit</span>
+                        </button>
+                    </li>
+                    <li>
+                        <button
+                            type="button"
+                            role="menuitem"
+                            onClick={run(() => onDelete(liveClass))}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-danger hover:bg-red-50"
+                        >
+                            <span className="fi-rr-trash" />
+                            <span>Delete</span>
+                        </button>
+                    </li>
+                </ul>,
+                document.body
+            )}
+        </div>
     );
 };
 
@@ -257,36 +389,15 @@ export default function CourseLiveClasses({ course }) {
                                             <StatusBadge status={c.status} />
                                         </td>
                                         <td className="py-3 px-4">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleStart(c.id)}
-                                                    disabled={completed || joiningId === c.id}
-                                                    title={completed ? 'Class ended' : 'Start live class'}
-                                                    className="inline-flex items-center justify-center w-8 h-8 rounded-md text-skin hover:bg-lightgreen disabled:opacity-40 disabled:cursor-not-allowed"
-                                                >
-                                                    {joiningId === c.id ? (
-                                                        <i className="fa fa-spinner fa-spin text-[14px]" />
-                                                    ) : (
-                                                        <span className="fi-rr-video-camera" />
-                                                    )}
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setModal({ type: 'edit', liveClass: c })}
-                                                    title="Edit"
-                                                    className="inline-flex items-center justify-center w-8 h-8 rounded-md text-skin hover:bg-lightgreen"
-                                                >
-                                                    <span className="fi-rr-pencil" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setConfirm({ id: c.id, label: c.class_topic })}
-                                                    title="Delete"
-                                                    className="inline-flex items-center justify-center w-8 h-8 rounded-md text-danger hover:bg-red-50"
-                                                >
-                                                    <span className="fi-rr-trash" />
-                                                </button>
+                                            <div className="flex items-center justify-end">
+                                                <ActionsMenu
+                                                    liveClass={c}
+                                                    completed={completed}
+                                                    joining={joiningId === c.id}
+                                                    onStart={handleStart}
+                                                    onEdit={(lc) => setModal({ type: 'edit', liveClass: lc })}
+                                                    onDelete={(lc) => setConfirm({ id: lc.id, label: lc.class_topic })}
+                                                />
                                             </div>
                                         </td>
                                     </tr>

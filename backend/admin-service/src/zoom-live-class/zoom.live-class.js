@@ -47,6 +47,18 @@ const buildSdkAuth = async ({ id, user }) => {
 const syncStatus = async ({ id }) => {
     const row = await liveClassService.findOrFail(id);
     const info = liveClassService.parseAdditionalInfo(row.additional_info);
+
+    // Manual provider — no Zoom meeting to query. The status is purely
+    // schedule-derived (scheduled → live → completed), so the player's
+    // "Live now" badge still works from the class date/time.
+    if (row.provider === 'manual') {
+        return {
+            id: Number(id),
+            provider: 'manual',
+            status: liveClassService.deriveStatus(row),
+        };
+    }
+
     if (row.provider !== 'zoom' || !info.id) {
         return { id: Number(id), provider: row.provider, status: 'unavailable' };
     }

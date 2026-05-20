@@ -168,7 +168,7 @@ export default function LiveClassPane({ course }) {
                                                 type="button"
                                                 onClick={() => join(lc.id)}
                                                 disabled={disabled}
-                                                className="ol-btn-outline disabled:opacity-40"
+                                                className="ol-btn-primary inline-flex items-center disabled:opacity-40 disabled:cursor-not-allowed"
                                                 title={completed ? 'Class ended' : 'Join now'}
                                             >
                                                 <i className="fa fa-video mr-1" />

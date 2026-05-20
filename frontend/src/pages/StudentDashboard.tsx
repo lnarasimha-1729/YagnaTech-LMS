@@ -231,6 +231,8 @@ import Certificate from "./Certificate";
 import ProfilePage from "./ProfilePage";
 import SectionHeader from "./SectionHeader";
 import ProgramsPage from "./Programspage";
+import NotificationsPage from "./NotificationsPage";
+import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 
 import {
   BookOpen,
@@ -256,14 +258,20 @@ const tabs = [
   // { value: "payments", label: "Payments", icon: CreditCard },
 ];
 
+// "notifications" is a valid dashboard tab (deep-linkable via ?tab=notifications
+// and the <TabsContent> below) but intentionally NOT in `tabs` above — it has
+// no sidebar nav row. It's reached via the "Notifications" button near Logout
+// and the navbar bell instead.
+
 interface StudentDashboardProps {
   contentOverride?: { title: string; node: React.ReactNode };
 }
 
-const VALID_TABS = ["overview", "assessments", "courses", "certificates", "profile"] as const;
+const VALID_TABS = ["overview", "assessments", "courses", "certificates", "notifications", "profile"] as const;
 
 const StudentDashboard = ({ contentOverride }: StudentDashboardProps = {}) => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const unreadCount = useUnreadNotifications();
 
   // Initial tab precedence: ?tab=… in the URL > contentOverride mode > overview.
   // The query-param hook lets pages like PreAssessment deep-link the user
@@ -351,11 +359,20 @@ const StudentDashboard = ({ contentOverride }: StudentDashboardProps = {}) => {
         </nav>
         
         <div className="p-4 border-t">
-          <Button variant="outline" className="w-full mb-2 hover:bg-gradient-hero">
+          <Button
+            variant="outline"
+            className="w-full mb-2 hover:bg-gradient-hero"
+            onClick={() => goToTab("notifications")}
+          >
             <Bell className="h-4 w-4 mr-2" /> Notifications
+            {unreadCount > 0 && (
+              <span className="ml-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold leading-[18px] text-center">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
           </Button>
-          <Button 
-            variant="destructive" 
+          <Button
+            variant="destructive"
             className="w-full"
             onClick={handleLogout}
           >
@@ -440,11 +457,20 @@ const StudentDashboard = ({ contentOverride }: StudentDashboardProps = {}) => {
 
             {/* Bottom Actions */}
             <div className="p-4 border-t space-y-2">
-              <Button variant="outline" className="w-full">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => goToTab("notifications")}
+              >
                 <Bell className="h-4 w-4 mr-2" /> Notifications
+                {unreadCount > 0 && (
+                  <span className="ml-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold leading-[18px] text-center">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
               </Button>
-              <Button 
-                variant="destructive" 
+              <Button
+                variant="destructive"
                 className="w-full"
                 onClick={handleLogout}
               >
@@ -482,6 +508,11 @@ const StudentDashboard = ({ contentOverride }: StudentDashboardProps = {}) => {
           <TabsContent value="certificates">
             <SectionHeader title="Certificates" student={studentData} />
             <Certificate />
+          </TabsContent>
+
+          <TabsContent value="notifications">
+            <SectionHeader title="Notifications" student={studentData} />
+            <NotificationsPage />
           </TabsContent>
 
           <TabsContent value="profile">

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Bell } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { User } from "lucide-react";
@@ -8,8 +9,11 @@ import {
   respondToProgramRequest,
   type ProgramRequest,
 } from "@/api/programRequestApi";
+import { useUnreadNotifications } from "@/hooks/useUnreadNotifications";
 
 const SectionHeader = ({ title, student }) => {
+  const navigate = useNavigate();
+  const unreadCount = useUnreadNotifications();
   // Program request an admin sent this student, awaiting accept/reject.
   const [request, setRequest] = useState<ProgramRequest | null>(null);
   const [responding, setResponding] = useState(false);
@@ -75,8 +79,29 @@ const SectionHeader = ({ title, student }) => {
           </div>
         )}
 
-        {/* Notification Bell */}
-        <Bell className="h-5 w-5 cursor-pointer hover:text-green-600 transition" />
+        {/* Notification Bell — opens the dashboard Notifications tab.
+            Shows an unread count badge when there are unseen updates. */}
+        <button
+          type="button"
+          aria-label={
+            unreadCount > 0
+              ? `Notifications, ${unreadCount} unread`
+              : "Notifications"
+          }
+          title="Notifications"
+          onClick={() => navigate("/dashboard?tab=notifications")}
+          className="relative bg-transparent border-0 p-0 cursor-pointer"
+        >
+          <Bell className="h-5 w-5 text-gray-600 hover:text-green-600 transition" />
+          {unreadCount > 0 && (
+            <span
+              className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold leading-[18px] text-center"
+              aria-hidden
+            >
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </button>
 
         {/* Student Profile */}
         <div className="flex items-center gap-2">

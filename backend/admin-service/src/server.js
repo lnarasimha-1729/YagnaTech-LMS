@@ -428,6 +428,24 @@ sequelize.authenticate()
         } catch (e) {
             console.warn('[forum] table sync failed:', e.message);
         }
+
+        // live_classes.user_id holds 11-digit auth-service userIds which
+        // exceed signed-INT max (2147483647). Older schema created the column
+        // as INT, which silently clamps the id and breaks the host lookup
+        // (the instructor name shows blank). Idempotently widen it to BIGINT.
+        try {
+            const { QueryTypes } = require('sequelize');
+            const [col] = await sequelize.query(
+                "SHOW COLUMNS FROM live_classes WHERE Field = 'user_id'",
+                { type: QueryTypes.SELECT }
+            );
+            if (col && /^int/i.test(col.Type)) {
+                await sequelize.query('ALTER TABLE live_classes MODIFY COLUMN user_id BIGINT NULL');
+                console.log('🛠️  Widened live_classes.user_id INT → BIGINT');
+            }
+        } catch (e) {
+            console.warn('[live-classes] user_id column check failed:', e.message);
+        }
     })
     .then(start)
     .catch((err) => {

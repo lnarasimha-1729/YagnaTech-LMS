@@ -10,8 +10,13 @@ import { getStoredUser } from '@/admin/api/auth';
  * Modal body for add/edit of a course live class.
  *
  * Mirrors the existing admin/pages/course/liveclass/LiveClassForm.jsx
- * structurally (same useState + react-toastify pattern), but talks to the
- * new /api/admin/zoom-live-class endpoints and always uses the 'zoom' provider.
+ * structurally (same useState + react-toastify pattern), and talks to the
+ * /api/admin/zoom-live-class endpoints.
+ *
+ * Two providers:
+ *   - zoom   : meeting is auto-created via the Zoom API
+ *   - manual : the instructor pastes any Zoom/Meet/Teams link — no API call;
+ *              the student opens that link from the course player
  */
 
 const formatLocal = (iso) => {
@@ -40,6 +45,15 @@ export default function CourseLiveClassForm({ course, liveClass, onDone, onCance
     const [note, setNote] = useState(liveClass?.note || '');
     const [instructors, setInstructors] = useState([]);
     const [saving, setSaving] = useState(false);
+
+    // Provider — fixed once created, so when editing we keep the existing one.
+    const [provider, setProvider] = useState(liveClass?.provider || 'zoom');
+    // Manual provider: the pasted meeting URL. Prefill from the existing
+    // meeting link when editing a manual class.
+    const [meetingLink, setMeetingLink] = useState(
+        liveClass?.meeting?.join_url || liveClass?.meeting?.start_url || ''
+    );
+    const isManual = provider === 'manual';
 
     useEffect(() => {
         // An instructor can't read the admin-only /manage/instructors endpoint
@@ -74,11 +88,14 @@ export default function CourseLiveClassForm({ course, liveClass, onDone, onCance
         try {
             const body = {
                 class_topic: topic,
-                provider: 'zoom',
+                provider,
                 user_id: userId,
                 class_date_and_time: dateTime,
                 note,
             };
+            // Manual provider — send the pasted link. For a zoom class this
+            // key is simply absent and the backend creates the meeting.
+            if (isManual) body.meeting_link = meetingLink.trim();
             if (editing) await updateLiveClass(liveClass.id, body);
             else await storeLiveClass(course.id, body);
             onDone();
@@ -143,9 +160,48 @@ export default function CourseLiveClassForm({ course, liveClass, onDone, onCance
                 </div>
             </div>
             <div className="mb-3">
-                <label className="ol-form-label">Provider</label>
-                <input className="ol-form-control" value="Zoom" disabled readOnly />
+                <label className="ol-form-label">
+                    Provider <span className="text-danger">*</span>
+                </label>
+                <select
+                    className="ol-form-control"
+                    value={provider}
+                    onChange={(e) => setProvider(e.target.value)}
+                    /* Provider is fixed once the class exists — changing it
+                       would orphan the created Zoom meeting / stored link. */
+                    disabled={editing}
+                >
+                    <option value="zoom">Zoom (auto-create meeting)</option>
+                    <option value="manual">Manual link (paste Zoom / Meet / Teams URL)</option>
+                </select>
+                {!editing && (
+                    <p className="text-[12px] text-gray mt-1">
+                        {isManual
+                            ? 'Paste your own meeting link below — students open it from the course player.'
+                            : 'A Zoom meeting is created automatically when you save.'}
+                    </p>
+                )}
             </div>
+
+            {isManual && (
+                <div className="mb-3">
+                    <label className="ol-form-label">
+                        Meeting link <span className="text-danger">*</span>
+                    </label>
+                    <input
+                        type="url"
+                        className="ol-form-control"
+                        value={meetingLink}
+                        onChange={(e) => setMeetingLink(e.target.value)}
+                        placeholder="https://meet.google.com/…  or  https://zoom.us/j/…"
+                        required
+                    />
+                    <p className="text-[12px] text-gray mt-1">
+                        Students will join the live class by opening this link.
+                    </p>
+                </div>
+            )}
+
             <div className="mb-3">
                 <label className="ol-form-label">Note for your student</label>
                 <textarea

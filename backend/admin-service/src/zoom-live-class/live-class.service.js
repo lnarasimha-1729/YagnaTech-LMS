@@ -18,6 +18,7 @@ const { HttpError } = require('../middlewares/error');
 const authDb = require('../config/authDatabase');
 const zoom = require('./zoom.service');
 const validators = require('./live-class.validators');
+const notifier = require('./live-class.notifier');
 
 const HOST_ROLE = 1;
 const ATTENDEE_ROLE = 0;
@@ -195,10 +196,28 @@ const create = async ({ courseId, body, user }) => {
             throw new HttpError(422, meeting.message);
         }
         data.additional_info = typeof meeting === 'string' ? meeting : JSON.stringify(meeting || {});
+    } else if (provider === 'manual') {
+        // Manual provider — the instructor pasted a meeting URL. No Zoom API
+        // call. Store the link as both join_url and start_url in
+        // additional_info so resolveJoin/serialize treat it like any other
+        // meeting (a manual class has no separate host/attendee link).
+        const link = String(body.meeting_link).trim();
+        data.additional_info = JSON.stringify({
+            manual: true,
+            join_url: link,
+            start_url: link,
+            topic: body.class_topic,
+        });
     }
 
     const row = await LiveClass.create(data);
     const hosts = await fetchHostsByIds([row.user_id]);
+
+    // Fire-and-forget: email enrolled students that a class was scheduled.
+    // NOT awaited — a slow/failing SMTP must never block or fail the create.
+    // notifier.notifyClassScheduled swallows its own errors.
+    notifier.notifyClassScheduled(row, hosts[String(row.user_id)]?.name);
+
     return serialize(row, hosts, { includeStartUrl: true });
 };
 
@@ -230,6 +249,20 @@ const update = async ({ id, body, user }) => {
                 next.additional_info = JSON.stringify(previous);
             }
         }
+    } else if (row.provider === 'manual') {
+        // Manual class — refresh the stored link. Keep the existing one if
+        // the edit form didn't send a new meeting_link.
+        const previous = parseAdditionalInfo(row.additional_info);
+        const link = body.meeting_link
+            ? String(body.meeting_link).trim()
+            : previous.join_url || '';
+        if (!link) throw new HttpError(422, 'A meeting link is required');
+        next.additional_info = JSON.stringify({
+            manual: true,
+            join_url: link,
+            start_url: link,
+            topic: body.class_topic,
+        });
     }
 
     await row.update(next);
@@ -303,6 +336,18 @@ const resolveJoin = async ({ id, user }) => {
     if (status === 'completed') {
         return { mode: 'unavailable', reason: 'Live class has ended.', status, role };
     }
+
+    // Manual provider — the instructor pasted a meeting URL. There is no Zoom
+    // meeting object; just hand the player the link to open in a new tab.
+    // Host and attendee both get the same URL.
+    if (row.provider === 'manual') {
+        const url = info.join_url || info.start_url;
+        if (!url) {
+            return { mode: 'unavailable', reason: 'Meeting link unavailable.', status, role };
+        }
+        return { mode: 'redirect', url, status, role };
+    }
+
     if (row.provider !== 'zoom' || !info.id) {
         return { mode: 'unavailable', reason: 'Live class is not configured.', status, role };
     }
