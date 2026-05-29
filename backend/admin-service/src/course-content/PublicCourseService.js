@@ -19,6 +19,16 @@ const absoluteUpload = (relPath) => {
     return `${base}/${clean}`;
 };
 
+// Like absoluteUpload but leaves already-absolute URLs untouched. Course
+// media (thumbnail/banner/preview) is usually a relative uploads/... path the
+// /uploads static mount serves, but `preview` can also be an external link
+// (CourseService stores b.preview_link verbatim). Prefixing those would break
+// them, so pass http(s):// and protocol-relative values through unchanged.
+const absoluteMedia = (val) => {
+    if (!val) return '';
+    return /^(https?:)?\/\//i.test(String(val)) ? String(val) : absoluteUpload(val);
+};
+
 const safeJSON = (raw, fallback) => {
     if (raw == null) return fallback;
     if (typeof raw !== 'string') return raw;
@@ -183,9 +193,9 @@ const sanitizeCourse = (course, sections = [], lessons = [], creator = null) => 
         // the public course-details "This course includes" line so students
         // see the real expiry the admin set in the Pricing tab.
         expiry_period: c.expiry_period == null ? null : Number(c.expiry_period),
-        thumbnail: c.thumbnail || '',
-        banner: c.banner || c.thumbnail || '',
-        preview: c.preview || '',
+        thumbnail: absoluteMedia(c.thumbnail),
+        banner: absoluteMedia(c.banner || c.thumbnail),
+        preview: absoluteMedia(c.preview),
         status: c.status,
         // Default to true when the column is missing so older rows keep the
         // pre-toggle behaviour ("Certificate Course" always shown).

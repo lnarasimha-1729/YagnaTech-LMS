@@ -254,9 +254,35 @@ const certificateIssued = ({
     return { subject, html: baseFrame({ heading, bodyHtml }) };
 };
 
+// Sent when a user requests a password reset. The raw reset token is embedded
+// in `resetLink` by the caller (auth-service) — admin-service only renders.
+const passwordReset = ({ userName, resetLink }) => {
+    const heading = 'Reset Your Password';
+    const subject = 'Reset your YagnaTech LMS password';
+    const safeName = escape(userName || 'there');
+    const safeLink = escape(resetLink || '');
+    const bodyHtml = `
+        <p style="margin:0 0 16px 0;">Hi ${safeName},</p>
+        <p style="margin:0 0 16px 0;">We received a request to reset the password for your YagnaTech LMS account. Click the button below to choose a new password. This link expires in 30 minutes.</p>
+        <p style="margin:0 0 24px 0;">
+            <a href="${safeLink}" style="display:inline-block;background:#177385;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600;">
+                Reset Password
+            </a>
+        </p>
+        <p style="margin:0 0 4px 0;color:#7a8189;font-size:13px;">If the button doesn't work, copy this link:</p>
+        <p style="margin:0 0 24px 0;font-size:13px;word-break:break-all;">
+            <a href="${safeLink}" style="color:#177385;">${safeLink}</a>
+        </p>
+        <p style="margin:0 0 16px 0;color:#7a8189;font-size:13px;">If you didn't request this, you can safely ignore this email — your password won't change.</p>
+        <p style="margin:0;">Best Regards,<br/>YagnaTech Team</p>
+    `;
+    return { subject, html: baseFrame({ heading, bodyHtml }) };
+};
+
 module.exports = {
     batchAddedToStudent,
     preAssessmentRegistered,
     courseAssignedToStudent,
     certificateIssued,
+    passwordReset,
 };

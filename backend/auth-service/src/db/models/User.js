@@ -121,8 +121,18 @@ const User = sequelize.define('User', {
     type: DataTypes.INTEGER,
     allowNull: true
   },
-  refreshToken: {  
+  refreshToken: {
     type: DataTypes.STRING(1024),
+    allowNull: true
+  },
+  // SHA-256 hash of the raw reset token mailed to the user. We never store
+  // the raw token so a DB leak can't be used to reset accounts directly.
+  passwordResetToken: {
+    type: DataTypes.STRING(128),
+    allowNull: true
+  },
+  passwordResetExpires: {
+    type: DataTypes.DATE,
     allowNull: true
   },
   roleId: {  // foreign key reference

@@ -15,6 +15,8 @@ router.put('/profile/update/org-clg-branch', isLoggedIn, authRoles(['student', '
 router.put("/profile/prescore", isLoggedIn, authRoles(['student']), controller.preScore)
 router.put("/profile/postscore", isLoggedIn, authRoles(['student']), controller.postScore)
 router.post('/change-password', isLoggedIn, controller.changePassword);
+router.post('/forgot-password', controller.requestPasswordReset);
+router.post('/reset-password', controller.resetPassword);
 router.post('/logout', isLoggedIn, controller.logout);
 
 export default router;

@@ -1,12 +1,61 @@
 import { z } from 'zod';
 import bcrypt from 'bcrypt';
-import { QueryTypes } from 'sequelize';
+import crypto from 'crypto';
+import { QueryTypes, Op } from 'sequelize';
 import sequelize from '../db/index.js';
 import { generateUserID } from '../utils/uidGeneration.js';
 import User from '../db/models/User.js';
 import Role from '../db/models/Role.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/jwt.js';
 import { id } from 'zod/locales';
+
+// Reset tokens live 30 minutes — long enough for the user to switch tabs and
+// retrieve the email, short enough that a stolen mailbox snapshot stops being
+// useful quickly.
+const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000;
+
+// Where the user lands to set a new password. The token is appended as a
+// query param. Configurable via env so staging/prod don't bake in localhost.
+const resetPasswordUrl = () =>
+  process.env.RESET_PASSWORD_URL || 'http://localhost:8080/reset-password';
+
+const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
+
+// Best-effort enqueue against admin-service's internal email endpoint. Returns
+// true on success and logs the reason on failure — never throws, because the
+// caller (requestPasswordReset) must respond with the same generic message
+// regardless of whether email actually went out.
+async function enqueueResetEmail({ to, name, resetLink }) {
+  const base = process.env.ADMIN_SERVICE_URL || 'http://localhost:4000';
+  const secret = process.env.INTERNAL_API_SECRET;
+  if (!secret) {
+    console.warn('[auth] INTERNAL_API_SECRET unset — skipping reset email enqueue');
+    return false;
+  }
+  try {
+    const res = await fetch(`${base}/api/internal/email/enqueue`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Internal-Secret': secret,
+      },
+      body: JSON.stringify({
+        template: 'passwordReset',
+        to,
+        data: { userName: name, resetLink },
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      console.warn(`[auth] reset email enqueue failed: ${res.status} ${text}`);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn('[auth] reset email enqueue threw:', e.message);
+    return false;
+  }
+}
 
 // Block login when the user's college has been revoked from Manage Colleges
 // → Options → Revoke Access. Raw SELECT avoids defining a duplicate College
@@ -297,6 +346,22 @@ export async function updateOrgClgBranch(req, res) {
     user.collegeId = collegeId ?? user.collegeId;
     user.branchId = branchId ?? user.branchId;
 
+    // The form only sends the clgId; resolve its display name from the
+    // colleges table (same schema this service connects to) and mirror it onto
+    // users.collegeName so pages that read the name stay in sync with the id.
+    // Best-effort: a lookup miss/failure leaves the id saved without the name.
+    if (collegeId) {
+      try {
+        const rows = await sequelize.query(
+          'SELECT clgName FROM colleges WHERE clgId = :clgId LIMIT 1',
+          { replacements: { clgId: collegeId }, type: QueryTypes.SELECT }
+        );
+        if (rows.length && rows[0].clgName) user.collegeName = rows[0].clgName;
+      } catch (e) {
+        console.warn('[auth] collegeName resolution skipped:', e.message);
+      }
+    }
+
     user.education = {
       ...user.education,
       orgId: orgId ?? user.education?.orgId,
@@ -401,6 +466,69 @@ export async function changePassword(req, res) {
     return res.json({ success: true, message: 'Password changed successfully' });
   } catch (err) {
     return res.status(500).json({ error: err.message });
+  }
+}
+
+// Kick off a password reset: generate a one-time token, store its hash on the
+// user, and queue the email containing the raw token. Responds with the same
+// generic 200 for both known and unknown emails so we don't leak which
+// addresses are registered.
+export async function requestPasswordReset(req, res) {
+  try {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+
+    const user = await User.findOne({ where: { email } });
+    const respondOk = () =>
+      res.json({ message: 'If an account exists for that email, a reset link has been sent.' });
+
+    if (!user) return respondOk();
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    user.passwordResetToken = sha256(rawToken);
+    user.passwordResetExpires = new Date(Date.now() + PASSWORD_RESET_TTL_MS);
+    await user.save();
+
+    const resetLink = `${resetPasswordUrl()}?token=${rawToken}`;
+    await enqueueResetEmail({ to: user.email, name: user.name, resetLink });
+
+    return respondOk();
+  } catch (err) {
+    console.error('requestPasswordReset error:', err);
+    return res.status(500).json({ error: 'Could not process reset request' });
+  }
+}
+
+// Consume a reset token and set a new password. Token is single-use: success
+// clears both the hash and the expiry so it can't be replayed, and rotates
+// the refreshToken so any logged-in session on the old credentials is
+// invalidated on its next refresh.
+export async function resetPassword(req, res) {
+  try {
+    const token = String(req.body?.token || '').trim();
+    const newPassword = String(req.body?.newPassword || '');
+    if (!token || newPassword.length < 8) {
+      return res.status(400).json({ error: 'Token and new password (min 8 chars) are required' });
+    }
+
+    const user = await User.findOne({
+      where: {
+        passwordResetToken: sha256(token),
+        passwordResetExpires: { [Op.gt]: new Date() },
+      },
+    });
+    if (!user) return res.status(400).json({ error: 'Reset link is invalid or has expired' });
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    user.passwordResetToken = null;
+    user.passwordResetExpires = null;
+    user.refreshToken = null;
+    await user.save();
+
+    return res.json({ success: true, message: 'Password has been reset. Please log in.' });
+  } catch (err) {
+    console.error('resetPassword error:', err);
+    return res.status(500).json({ error: 'Could not reset password' });
   }
 }
 

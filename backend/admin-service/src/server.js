@@ -713,6 +713,54 @@ sequelize.authenticate()
             console.warn('[programs] column check failed:', e.message);
         }
 
+        // program_requests: created here when missing (fresh DB / new RDS
+        // migration). Holds the admin→student program assignment + the
+        // student's accept/reject response. UNIQUE(user_id) backs the
+        // ON DUPLICATE KEY UPDATE upsert in StudentService.
+        try {
+            const { QueryTypes } = require('sequelize');
+            const authDb = require('./config/authDatabase');
+            await authDb.query(`
+                CREATE TABLE IF NOT EXISTS program_requests (
+                    id           INT AUTO_INCREMENT PRIMARY KEY,
+                    user_id      VARCHAR(255) NOT NULL,
+                    program      VARCHAR(255) NOT NULL,
+                    requested_by VARCHAR(255) NULL,
+                    status       VARCHAR(32)  NOT NULL DEFAULT 'sent',
+                    responded_at DATETIME     NULL,
+                    created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_program_requests_user (user_id)
+                ) ENGINE=InnoDB`);
+        } catch (e) {
+            console.warn('[program_requests] table ensure skipped:', e.message);
+        }
+
+        // users (auth DB) program-response mirror columns. StudentService
+        // writes assignedProgram / programResponseStatus / programRespondedAt
+        // when a request is sent or answered; on a fresh DB these don't exist.
+        try {
+            const { QueryTypes } = require('sequelize');
+            const authDb = require('./config/authDatabase');
+            const wanted = [
+                ['assignedProgram',       'VARCHAR(255) NULL'],
+                ['programResponseStatus', 'VARCHAR(32) NULL'],
+                ['programRespondedAt',    'DATETIME NULL'],
+            ];
+            for (const [field, ddl] of wanted) {
+                const [col] = await authDb.query(
+                    'SHOW COLUMNS FROM users WHERE Field = :field',
+                    { replacements: { field }, type: QueryTypes.SELECT }
+                );
+                if (!col) {
+                    await authDb.query(`ALTER TABLE users ADD COLUMN ${field} ${ddl}`);
+                    console.log(`🛠️  Added users.${field} column (auth DB)`);
+                }
+            }
+        } catch (e) {
+            console.warn('[users] program-response columns check skipped:', e.message);
+        }
+
         // program_requests.program: was an ENUM of 3 hardcoded strings;
         // widen to VARCHAR so admin-created program titles (from Manage
         // Programs) fit. Same idempotent ALTER pattern the other migrations

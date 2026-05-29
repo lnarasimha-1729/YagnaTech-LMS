@@ -159,6 +159,29 @@ export async function initDb() {
     if (created) console.log(`  ✅ Seeded role: ${roleName}`);
   }
 
+  // Forgot-password columns. sequelize.sync() doesn't add new columns to an
+  // existing table, so DESCRIBE first and ALTER only when absent — same
+  // idempotent pattern admin-service uses for late column additions.
+  try {
+    const { QueryTypes } = await import('sequelize');
+    const wanted = [
+      ['passwordResetToken',   'VARCHAR(128) NULL'],
+      ['passwordResetExpires', 'DATETIME NULL'],
+    ];
+    for (const [field, ddl] of wanted) {
+      const [col] = await sequelize.query(
+        'SHOW COLUMNS FROM users WHERE Field = :field',
+        { replacements: { field }, type: QueryTypes.SELECT }
+      );
+      if (!col) {
+        await sequelize.query(`ALTER TABLE users ADD COLUMN ${field} ${ddl}`);
+        console.log(`🛠️  Added users.${field} column`);
+      }
+    }
+  } catch (e) {
+    console.warn('[auth] password-reset column check skipped:', e.message);
+  }
+
   console.log('🗄️  Database connected and synced---');
 }
 

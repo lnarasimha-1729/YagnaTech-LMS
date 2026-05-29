@@ -423,7 +423,20 @@ async function seedPreAssessment() {
     await Question.findOrCreate({ where: { quesId: q.quesId }, defaults: q });
   }
 
-  // 2. Find Assessment A1 (create it if it doesn't exist yet)
+  // 2. Ensure the QuestionSet exists BEFORE the assessment row references it.
+  //    The Assessment.setId column has a FK to questionsets.setId; on a fresh
+  //    DB the parent row must be in place first or the insert blows up.
+  await QuestionSet.findOrCreate({
+    where: { setId: PRE_ASSESSMENT_SET_ID },
+    defaults: {
+      setId: PRE_ASSESSMENT_SET_ID,
+      setName: 'AI Pre-Assessment Set',
+      category: 'AI',
+      questions: allIds,
+    },
+  });
+
+  // 3. Find Assessment A1 (create it if it doesn't exist yet)
   const [assessment, aCreated] = await Assessment.findOrCreate({
     where: { assessmentId: PRE_ASSESSMENT_ID },
     defaults: {
@@ -477,7 +490,19 @@ async function seedPostAssessment() {
     await Question.findOrCreate({ where: { quesId: q.quesId }, defaults: q });
   }
 
-  // 2. Find Assessment A2 (create if it doesn't exist)
+  // 2. Ensure the QuestionSet exists BEFORE the assessment row references it
+  //    (FK constraint on assessments.setId).
+  await QuestionSet.findOrCreate({
+    where: { setId: POST_ASSESSMENT_SET_ID },
+    defaults: {
+      setId: POST_ASSESSMENT_SET_ID,
+      setName: 'AI Post-Assessment Set',
+      category: 'AI',
+      questions: allIds,
+    },
+  });
+
+  // 3. Find Assessment A2 (create if it doesn't exist)
   const [assessment, aCreated] = await Assessment.findOrCreate({
     where: { assessmentId: POST_ASSESSMENT_ID },
     defaults: {
