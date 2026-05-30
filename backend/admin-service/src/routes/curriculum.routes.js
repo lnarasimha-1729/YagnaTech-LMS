@@ -5,8 +5,13 @@ const { adminOrInstructor } = require('../middlewares/auth');
 
 const upload = multer({ dest: 'tmp/' });
 
+// `attachment` carries either a single document (document_type lesson) or
+// one-to-many images (image lesson). Bumped to 20 so an admin can upload an
+// image gallery in a single request — CurriculumService routes single-file
+// uploads through the legacy single-filename path and multi-file uploads
+// through a JSON-array path keyed off lesson_type === 'image'.
 const lessonFiles = upload.fields([
-    { name: 'attachment', maxCount: 1 },
+    { name: 'attachment', maxCount: 20 },
     { name: 'scorm_file', maxCount: 1 },
     { name: 'system_video_file', maxCount: 1 },
 ]);

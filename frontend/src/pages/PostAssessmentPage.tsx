@@ -2,22 +2,47 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ClipboardList, Clock, Award } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { getAssessment } from "@/api/assessmentApi";
 
+const POST_ASSESSMENT_ID = "A2";
+
 const PostAssessmentPage = () => {
-  
+
   const navigate = useNavigate()
+
+  // Same DB-driven pattern as PreAssessmentPage — pull question count and
+  // timer from the assessments row instead of hardcoding them in the card.
+  const [questionCount, setQuestionCount] = useState<number | null>(null);
+  const [timerMinutes, setTimerMinutes] = useState<number | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await getAssessment(POST_ASSESSMENT_ID);
+        if (!alive) return;
+        const data = res.data as { questions?: unknown[]; timer?: number };
+        setQuestionCount(Array.isArray(data.questions) ? data.questions.length : 0);
+        const secs = Number(data.timer) || 0;
+        setTimerMinutes(Math.round(secs / 60));
+      } catch {
+        if (!alive) return;
+        setQuestionCount(0);
+        setTimerMinutes(0);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   const startAssessment = async () => {
   try {
-    const assessmentId = "A2"; // Post Assessment ID
-  
-    const res = await getAssessment(assessmentId);
-  
-    navigate(`/postassessment/${assessmentId}`, {
+    const res = await getAssessment(POST_ASSESSMENT_ID);
+
+    navigate(`/postassessment/${POST_ASSESSMENT_ID}`, {
       state: { assessment: res.data }
     });
-  
+
   } catch (error) {
     console.error(error);
     alert("Failed to start assessment");
@@ -51,12 +76,16 @@ const PostAssessmentPage = () => {
             <div className="grid md:grid-cols-3 gap-6 text-center">
               <div className="flex flex-col items-center">
                 <ClipboardList className="h-8 w-8 text-[#177385] mb-2" />
-                <p className="text-gray-700 font-medium">20 Questions</p>
+                <p className="text-gray-700 font-medium">
+                  {questionCount === null ? "…" : `${questionCount} Questions`}
+                </p>
                 <p className="text-sm text-gray-500">MCQs & Scenario-based</p>
               </div>
               <div className="flex flex-col items-center">
                 <Clock className="h-8 w-8 text-[#177385] mb-2" />
-                <p className="text-gray-700 font-medium">30 Minutes</p>
+                <p className="text-gray-700 font-medium">
+                  {timerMinutes === null ? "…" : `${timerMinutes} Minutes`}
+                </p>
                 <p className="text-sm text-gray-500">Complete in one sitting</p>
               </div>
               <div className="flex flex-col items-center">

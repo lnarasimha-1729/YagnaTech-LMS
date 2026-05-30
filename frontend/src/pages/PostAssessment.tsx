@@ -25,7 +25,10 @@ export default function PostAssessment() {
         const res = await getAssessment(assessmentId);
         setAssessment(res.data);
 
-        const initialTime = res.data.timer || 1800;
+        // Timer comes from assessments.timer; no client-side default so an
+        // admin misconfiguration is visible (0:00) rather than masked by a
+        // silent 30-minute fallback.
+        const initialTime = Number(res.data.timer) || 0;
         setTimeLeft(initialTime);
         // Start the elapsed-time clock the moment we have the assessment
         // (i.e. the student can start answering). Don't overwrite on re-runs.
@@ -153,6 +156,13 @@ export default function PostAssessment() {
   if (!assessment) return <div className="p-10 text-red-500">Assessment not found</div>;
 
   const questions = assessment.questions || [];
+  // Total marks and per-question marks are derived from the assessment row
+  // (assessments.score) and live question count — kept in sync with how
+  // autoSubmit calculates the final percentage.
+  const totalMarks = Number(assessment.score) || 0;
+  const marksPerQuestion = questions.length > 0
+    ? +(totalMarks / questions.length).toFixed(2)
+    : 0;
 
   // 🟦 Manual Submit with Confirmation
   const handleSubmit = async () => {
@@ -171,9 +181,9 @@ export default function PostAssessment() {
         {/* HEADER INFO */}
         <div className="flex justify-between items-center mb-4">
           <div className="text-sm text-gray-600 font-medium">
-            Total Marks: <span className="text-[#177385] font-bold">100</span>
+            Total Marks: <span className="text-[#177385] font-bold">{totalMarks}</span>
             &nbsp;|&nbsp; Questions: <span className="text-[#177385] font-bold">{questions.length}</span>
-            &nbsp;|&nbsp; Marks per Question: <span className="text-[#177385] font-bold">5</span>
+            &nbsp;|&nbsp; Marks per Question: <span className="text-[#177385] font-bold">{marksPerQuestion}</span>
           </div>
           {/* ⏳ TIMER */}
           <div className={`text-md font-bold ${timeLeft > 300 ? "text-black" : "text-red-600"}`}>
@@ -194,7 +204,7 @@ export default function PostAssessment() {
                   </p>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 font-medium">
-                      5 Marks
+                      {marksPerQuestion} Marks
                     </span>
                     <span
                       className={`px-2 py-1 text-xs rounded-full ${

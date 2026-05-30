@@ -192,7 +192,7 @@ const ProgramsPage = () => {
           <p className="text-gray-600">No courses available for your college yet.</p>
         )}
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {!loading && !progressLoading && hasCollege === true && courses.map((course) => {
             // A card unlocks when the student has passed the pre-assessment
             // (preScore >= PRE_ASSESSMENT_PASS). The per-program accept gate
@@ -222,7 +222,7 @@ const ProgramsPage = () => {
                           : () => handleStart(course.slug)
                     }
                     disabled={locked}
-                    className="block w-full aspect-video bg-gray-100 overflow-hidden disabled:cursor-not-allowed"
+                    className="block w-full aspect-[16/9] max-h-44 bg-gray-100 overflow-hidden disabled:cursor-not-allowed"
                     aria-label={isEnrolled ? "Continue course" : "Open course"}
                   >
                     <img
@@ -234,7 +234,7 @@ const ProgramsPage = () => {
                 )}
                 <CardHeader>
                   <div className="flex items-center justify-between gap-3">
-                    <CardTitle className="text-[#177385]">{course.title}</CardTitle>
+                    <CardTitle className="text-[#177385] text-base leading-snug line-clamp-2">{course.title}</CardTitle>
                     {/* Bare arrow — gated on pre-assessment. Disabled until
                         `locked` flips false; opens the course details, or
                         jumps straight back into the player when enrolled. */}
@@ -256,28 +256,16 @@ const ProgramsPage = () => {
                       aria-label={isEnrolled ? "Continue course" : "Open course"}
                       title={isEnrolled ? "Continue course" : "Open course"}
                     >
-                      <ArrowRight className="w-6 h-6" />
+                      <ArrowRight className="w-5 h-5" />
                     </button>
                   </div>
                 </CardHeader>
                 <CardContent>
                   {course.short_description && (
-                    <p className="text-gray-600 mb-3 line-clamp-3">
+                    <p className="text-sm text-gray-600 mb-3 line-clamp-2">
                       {course.short_description}
                     </p>
                   )}
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                    {course.level && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 capitalize">
-                        {course.level}
-                      </span>
-                    )}
-                    {course.language && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 capitalize">
-                        {course.language}
-                      </span>
-                    )}
-                  </div>
                   {locked ? (
                     <p className="text-xs text-gray-500 mt-3">
                       Complete Pre-Assessment to unlock

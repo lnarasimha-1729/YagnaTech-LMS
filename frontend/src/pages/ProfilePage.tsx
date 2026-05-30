@@ -1,6 +1,7 @@
 import { useState, useEffect, useContext } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { updateProfile, updateEducation, updateOrgClgBranch } from "@/api/authApi";
+import { getMyPreAssessmentRegistration } from "@/api/preAssessmentRegistrationApi";
 import { CollegeContext } from "@/context/CollegeContext"; // Import CollegeContext
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -226,6 +227,27 @@ const ProfilePage = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [hasLoadedData, setHasLoadedData] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  // Program the student picked during pre-assessment registration. When this
+  // exists it overrides users.programInterested so the profile mirrors the
+  // selection on file, and the field switches to read-only.
+  const [registeredProgram, setRegisteredProgram] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getMyPreAssessmentRegistration();
+        const reg = res.data?.data;
+        if (!cancelled && reg?.selectedProgram) {
+          setRegisteredProgram(reg.selectedProgram);
+        }
+      } catch {
+        // No registration on file or service unreachable — fall back silently
+        // to whatever users.programInterested held.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (user && !hasLoadedData) {
@@ -241,11 +263,48 @@ const ProfilePage = () => {
             ? user.yearOfEducation.toString()
             : "",
         college: user.collegeId ?? "",
-        programInterested: user.programInterested ?? ""
+        programInterested: registeredProgram ?? user.programInterested ?? ""
       });
       setHasLoadedData(true);
     }
-  }, [user, loading, hasLoadedData]);
+  }, [user, loading, hasLoadedData, registeredProgram]);
+
+  // Once the pre-registration program arrives (after first form hydration),
+  // back-fill the field so the user sees the registered program even if it
+  // wasn't on users.programInterested yet.
+  useEffect(() => {
+    if (registeredProgram) {
+      setFormData((prev) => ({ ...prev, programInterested: registeredProgram }));
+    }
+  }, [registeredProgram]);
+
+  // Persist the registration's program to users.programInterested whenever
+  // the two are out of sync. The field is read-only in the UI, so without
+  // this the column would never catch up to the registered selection.
+  // Fires once per (user, registeredProgram) pair — guarded by both values
+  // being present and different from the current DB row.
+  const [didSyncRegProgram, setDidSyncRegProgram] = useState(false);
+  useEffect(() => {
+    if (
+      user &&
+      registeredProgram &&
+      registeredProgram !== (user.programInterested ?? "") &&
+      !didSyncRegProgram
+    ) {
+      setDidSyncRegProgram(true);
+      (async () => {
+        try {
+          // Only programInterested — backend uses `?? user.x` for the other
+          // optional fields, so omitting them leaves the row untouched.
+          await updateEducation({ programInterested: registeredProgram });
+          await checkAuth();
+        } catch {
+          // Silent — the next manual Save Changes will retry the write.
+          setDidSyncRegProgram(false);
+        }
+      })();
+    }
+  }, [user, registeredProgram, didSyncRegProgram, checkAuth]);
 
   const handleInputChange = (field: keyof ProfileFormData, value: string) => {
     setFormData(prev => ({
@@ -318,7 +377,7 @@ const ProfilePage = () => {
             ? user.yearOfEducation.toString()
             : "",
         college: user.collegeId ?? "",
-        programInterested: user.programInterested ?? ""
+        programInterested: registeredProgram ?? user.programInterested ?? ""
       });
     }
     setIsEditing(false);
@@ -554,9 +613,17 @@ const ProfilePage = () => {
               <Input
                 value={formData.programInterested}
                 onChange={(e) => handleInputChange('programInterested', e.target.value)}
-                disabled={!isEditing}
+                // When the student already picked a program during
+                // pre-assessment registration, that selection is the source of
+                // truth — lock the field so the two records can't drift.
+                disabled={!isEditing || !!registeredProgram}
                 placeholder="Elite AI Residency"
               />
+              {registeredProgram && (
+                <p className="text-xs text-gray-500">
+                  Selected during pre-assessment registration.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

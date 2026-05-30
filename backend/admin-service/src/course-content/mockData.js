@@ -366,7 +366,7 @@ const markProgress = (courseId, lessonId, currentDuration, userId = 99) => {
     const totalSeconds = lesson ? durationToSeconds(lesson.duration) : 0;
 
     let isCompleted = 0;
-    if (course && course.enable_drip_content === 1) {
+    if (course && Number(course.enable_drip_content) === 1) {
         const drip = (() => {
             try {
                 return typeof course.drip_content_settings === 'string'
@@ -374,6 +374,7 @@ const markProgress = (courseId, lessonId, currentDuration, userId = 99) => {
                     : (course.drip_content_settings || {});
             } catch { return {}; }
         })();
+        console.log('[markProgress] drip path | course', courseId, 'lesson', lessonId, '| drip =', drip, '| watched', watchedSeconds, '| total', totalSeconds);
         if (drip.lesson_completion_role === 'duration') {
             if (watchedSeconds >= Number(drip.minimum_duration || 0)) isCompleted = 1;
             else if (totalSeconds > 0 && watchedSeconds + 4 >= totalSeconds) isCompleted = 1;
@@ -382,9 +383,18 @@ const markProgress = (courseId, lessonId, currentDuration, userId = 99) => {
             if (watchedSeconds >= required) isCompleted = 1;
             else if (totalSeconds > 0 && watchedSeconds + 4 >= totalSeconds) isCompleted = 1;
         }
-    } else if (totalSeconds > 0) {
-        // Default rule: 30% watched -> completed.
-        if (watchedSeconds >= totalSeconds * 0.30) isCompleted = 1;
+    } else {
+        // Default rule (no drip): 30% of duration. If the lesson has no
+        // duration in the DB ("00:00:00"), the 30% rule can't fire — so fall
+        // back to a minimum-watched-seconds threshold so the lesson can still
+        // auto-complete. Mirrors the duration-rule semantics for drip courses.
+        const FALLBACK_MIN_SECONDS = 30;
+        console.log('[markProgress] non-drip path | course', courseId, 'lesson', lessonId, '| enable_drip =', course?.enable_drip_content, '| watched', watchedSeconds, '| total', totalSeconds);
+        if (totalSeconds > 0) {
+            if (watchedSeconds >= totalSeconds * 0.30) isCompleted = 1;
+        } else if (watchedSeconds >= FALLBACK_MIN_SECONDS) {
+            isCompleted = 1;
+        }
     }
 
     let history = null;

@@ -4,7 +4,8 @@ import { getLesson, updateLesson } from '../../../api/curriculum';
 import { detectVideoDuration, detectFileDuration } from './videoDuration';
 
 const URL_TYPES = ['video-url', 'vimeo-url', 'html5', 'google_drive'];
-const DOC_PROVIDERS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'];
+// Document lessons are restricted to formats the player can preview inline.
+const DOC_PROVIDERS = ['pdf', 'txt'];
 const SCORM_PROVIDERS = ['scorm 1.2', 'scorm 2004'];
 
 const labelFor = (lesson_type, lesson_provider) => {
@@ -32,6 +33,11 @@ export default function LessonEditForm({ lessonId, sections, onDone }) {
     const [textDescription, setTextDescription] = useState('');
     const [duration, setDuration] = useState('00:00:00');
     const [attachment, setAttachment] = useState(null);
+    // Multi-image lessons keep their pending uploads here. Submitting any
+    // file(s) REPLACES the saved set on the server, so we also need a small
+    // helper that parses the existing attachment column to show what's
+    // currently saved (legacy single-string OR new JSON-array shape).
+    const [imageFiles, setImageFiles] = useState([]);
     const [attachmentType, setAttachmentType] = useState(DOC_PROVIDERS[0]);
     const [scormFile, setScormFile] = useState(null);
     const [scormProvider, setScormProvider] = useState(SCORM_PROVIDERS[0]);
@@ -57,6 +63,21 @@ export default function LessonEditForm({ lessonId, sections, onDone }) {
         detectFileDuration(file)
             .then((d) => { if (d) setDuration(d); })
             .finally(() => setDetectingDuration(false));
+    };
+
+    // A native file input only reports the files chosen in the most recent
+    // dialog, so APPEND to the existing selection rather than replacing it.
+    // De-dupe by name+size so re-picking the same file doesn't add a clone.
+    const addImageFiles = (picked) => {
+        setImageFiles((prev) => {
+            const seen = new Set(prev.map((f) => `${f.name}-${f.size}`));
+            const next = [...prev];
+            for (const f of picked) {
+                const key = `${f.name}-${f.size}`;
+                if (!seen.has(key)) { seen.add(key); next.push(f); }
+            }
+            return next;
+        });
     };
 
     useEffect(() => {
@@ -109,7 +130,10 @@ export default function LessonEditForm({ lessonId, sections, onDone }) {
                 if (attachment) fd.append('attachment', attachment);
                 fd.append('attachment_type', attachmentType);
             } else if (lesson.lesson_type === 'image') {
-                if (attachment) fd.append('attachment', attachment);
+                // Only send if the admin actually picked new images. An empty
+                // selection means "keep what's saved" — the backend leaves
+                // the column untouched in that case.
+                imageFiles.forEach((f) => fd.append('attachment', f));
             } else if (lesson.lesson_type === 'scorm') {
                 if (scormFile) fd.append('scorm_file', scormFile);
                 fd.append('scorm_provider', scormProvider);
@@ -210,7 +234,7 @@ export default function LessonEditForm({ lessonId, sections, onDone }) {
                     {lesson.attachment && <p className="text-[13px] text-gray mb-2">Current: {lesson.attachment}</p>}
                     <div className="mb-3">
                         <label className="ol-form-label">Replace document (optional)</label>
-                        <input type="file" className="ol-form-control" onChange={(e) => setAttachment(e.target.files?.[0] || null)} />
+                        <input type="file" className="ol-form-control" accept=".pdf,.txt,application/pdf,text/plain" onChange={(e) => setAttachment(e.target.files?.[0] || null)} />
                     </div>
                     <div className="mb-3">
                         <label className="ol-form-label">Document type</label>
@@ -221,15 +245,91 @@ export default function LessonEditForm({ lessonId, sections, onDone }) {
                 </>
             )}
 
-            {t === 'image' && (
-                <>
-                    {lesson.attachment && <p className="text-[13px] text-gray mb-2">Current: {lesson.attachment}</p>}
-                    <div className="mb-3">
-                        <label className="ol-form-label">Replace image (optional)</label>
-                        <input type="file" className="ol-form-control" accept="image/*" onChange={(e) => setAttachment(e.target.files?.[0] || null)} />
-                    </div>
-                </>
-            )}
+            {t === 'image' && (() => {
+                // Saved attachments may be a JSON array (multi) or a plain
+                // filename (legacy single). Normalise to string[] for the
+                // "Current images" preview row.
+                const currentNames = (() => {
+                    const s = String(lesson.attachment || '').trim();
+                    if (!s) return [];
+                    if (s.startsWith('[')) {
+                        try {
+                            const arr = JSON.parse(s);
+                            return Array.isArray(arr) ? arr.map(String) : [];
+                        } catch { return []; }
+                    }
+                    return [s];
+                })();
+                const ADMIN_BASE = (import.meta.env.VITE_ADMIN_API_URL) || 'http://localhost:4000';
+                const urlFor = (name) =>
+                    `${ADMIN_BASE.replace(/\/$/, '')}/uploads/lesson_file/attachment/${name}`;
+                return (
+                    <>
+                        {currentNames.length > 0 && (
+                            <div className="mb-3">
+                                <p className="text-[13px] text-gray mb-2">
+                                    Current images ({currentNames.length})
+                                </p>
+                                <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
+                                    {currentNames.map((n) => (
+                                        <img
+                                            key={n}
+                                            src={urlFor(n)}
+                                            alt={n}
+                                            className="w-full h-20 object-cover rounded border border-gray-200"
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        <div className="mb-3">
+                            <label className="ol-form-label">
+                                Replace with new image(s) (optional)
+                                {imageFiles.length > 0 && (
+                                    <span className="ml-2 text-[12px] text-gray font-normal">
+                                        ({imageFiles.length} selected)
+                                    </span>
+                                )}
+                            </label>
+                            <input
+                                type="file"
+                                className="ol-form-control"
+                                accept="image/*"
+                                multiple
+                                onChange={(e) => {
+                                    addImageFiles(Array.from(e.target.files || []));
+                                    // Reset so re-selecting the same file still fires onChange.
+                                    e.target.value = '';
+                                }}
+                            />
+                            {imageFiles.length > 0 && (
+                                <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2 mt-3">
+                                    {imageFiles.map((f, i) => (
+                                        <div key={`${f.name}-${i}`} className="relative">
+                                            <img
+                                                src={URL.createObjectURL(f)}
+                                                alt={f.name}
+                                                className="w-full h-20 object-cover rounded border border-gray-200"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setImageFiles((s) => s.filter((_, idx) => idx !== i))}
+                                                className="absolute top-0 right-0 -mt-1 -mr-1 w-5 h-5 rounded-full bg-black/70 text-white text-[11px] leading-none hover:bg-black"
+                                                title="Remove"
+                                            >
+                                                ×
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <p className="col-span-full text-[12px] text-amber-700 mt-1">
+                                        Saving will replace all current images.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </>
+                );
+            })()}
 
             {t === 'scorm' && (
                 <>

@@ -1,10 +1,15 @@
 // src/middlewares/rateLimiter.js
 import rateLimit from 'express-rate-limit';
 
-const limiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 2000, // per IP
+const ONE_MINUTE_MS = 60 * 1000;
+const MAX_REQUESTS_PER_WINDOW = 2000;
+
+const rateLimiter = rateLimit({
+  windowMs: ONE_MINUTE_MS,
+  max: MAX_REQUESTS_PER_WINDOW,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' },
 });
 
-export default limiter;
+export default rateLimiter;

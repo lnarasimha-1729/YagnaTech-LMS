@@ -1,4 +1,6 @@
 import fs from "fs";
+import sequelize from "../db/index.js";
+import { QueryTypes } from "sequelize";
 import {
   createRegistration,
   findBlockingRegistration,
@@ -74,6 +76,29 @@ export async function submitRegistration(req, res) {
       submittedFromIp: req.ip,
       submittedUserAgent: (req.headers["user-agent"] || "").slice(0, 255),
     });
+
+    // Mirror the chosen program to users.programInterested so the student's
+    // profile reflects the registration without waiting for a profile-edit
+    // round-trip. Auth-service owns the users table but lives in the same
+    // MySQL instance, so a direct UPDATE is safe and avoids a cross-service
+    // HTTP hop on the critical registration path. Best-effort — registration
+    // is already persisted, so a failure here is logged but not surfaced.
+    if (userId && selectedProgram) {
+      try {
+        await sequelize.query(
+          "UPDATE users SET programInterested = :program WHERE userId = :userId",
+          {
+            replacements: { program: selectedProgram, userId },
+            type: QueryTypes.UPDATE,
+          }
+        );
+      } catch (syncErr) {
+        console.warn(
+          "[preAssessmentRegistration] failed to mirror programInterested to users:",
+          syncErr?.message
+        );
+      }
+    }
 
     // Fire-and-forget confirmation email via admin-service's queue. NOT
     // awaited: the registration already persisted, and SMTP latency must

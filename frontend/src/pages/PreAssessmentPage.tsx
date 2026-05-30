@@ -6,6 +6,10 @@ import { useEffect, useState } from "react";
 import { getAssessment } from "@/api/assessmentApi";
 import { getProfile } from "@/api/authApi";
 
+// Hardcoded id of the pre-assessment record on the assessments table. Kept
+// in one place so the mount-time fetch and the Start handler stay in sync.
+const PRE_ASSESSMENT_ID = "A1";
+
 const PreAssessmentPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -19,6 +23,32 @@ const PreAssessmentPage = () => {
     Boolean((location.state as { incompleteProfile?: boolean } | null)?.incompleteProfile)
   );
   const [starting, setStarting] = useState(false);
+  // Question count + timer pulled from the assessments row so the welcome
+  // card stays in sync with whatever the admin configured. Null while the
+  // fetch is in flight — the UI shows "…" rather than a hardcoded number.
+  const [questionCount, setQuestionCount] = useState<number | null>(null);
+  const [timerMinutes, setTimerMinutes] = useState<number | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await getAssessment(PRE_ASSESSMENT_ID);
+        if (!alive) return;
+        const data = res.data as { questions?: unknown[]; timer?: number };
+        setQuestionCount(Array.isArray(data.questions) ? data.questions.length : 0);
+        // assessments.timer is stored in seconds — convert to whole minutes
+        // for the welcome card. 0 stays 0 so a misconfigured row is visible.
+        const secs = Number(data.timer) || 0;
+        setTimerMinutes(Math.round(secs / 60));
+      } catch {
+        if (!alive) return;
+        setQuestionCount(0);
+        setTimerMinutes(0);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   // Pull the student's profile once on mount so we know whether their college
   // has been filled in. Pre-assessment results are scoped to a college on the
@@ -49,9 +79,8 @@ const PreAssessmentPage = () => {
     }
     try {
       setStarting(true);
-      const assessmentId = "A1";
-      const res = await getAssessment(assessmentId);
-      navigate(`/preassessment/${assessmentId}`, {
+      const res = await getAssessment(PRE_ASSESSMENT_ID);
+      navigate(`/preassessment/${PRE_ASSESSMENT_ID}`, {
         state: { assessment: res.data },
       });
     } catch (error) {
@@ -111,12 +140,16 @@ const PreAssessmentPage = () => {
             <div className="grid md:grid-cols-3 gap-6 text-center">
               <div className="flex flex-col items-center">
                 <ClipboardList className="h-8 w-8 text-[#177385] mb-2" />
-                <p className="text-gray-700 font-medium">20 Questions</p>
+                <p className="text-gray-700 font-medium">
+                  {questionCount === null ? "…" : `${questionCount} Questions`}
+                </p>
                 <p className="text-sm text-gray-500">MCQs & Scenario-based</p>
               </div>
               <div className="flex flex-col items-center">
                 <Clock className="h-8 w-8 text-[#177385] mb-2" />
-                <p className="text-gray-700 font-medium">30 Minutes</p>
+                <p className="text-gray-700 font-medium">
+                  {timerMinutes === null ? "…" : `${timerMinutes} Minutes`}
+                </p>
                 <p className="text-sm text-gray-500">Complete in one sitting</p>
               </div>
               <div className="flex flex-col items-center">

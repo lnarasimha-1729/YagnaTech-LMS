@@ -4,13 +4,10 @@ const TYPES = [
     { value: 'youtube', label: 'YouTube Video' },
     { value: 'vimeo', label: 'Vimeo Video' },
     { value: 'video', label: 'Video file' },
-    { value: 'html5', label: 'Video url [ .mp4 ]' },
     { value: 'google_drive_video', label: 'Google drive video' },
     { value: 'document', label: 'Document file' },
     { value: 'text', label: 'Text' },
     { value: 'image', label: 'Image' },
-    { value: 'iframe', label: 'Iframe embed' },
-    { value: 'scorm', label: 'Scorm Content' },
 ];
 
 export default function LessonTypePicker({ course, onNext }) {

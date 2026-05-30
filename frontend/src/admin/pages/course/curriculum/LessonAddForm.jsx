@@ -20,7 +20,8 @@ const TYPE_MAP = {
 const isUrlType = (t) => ['youtube', 'vimeo', 'html5', 'google_drive_video'].includes(t);
 const isFileType = (t) => ['video', 'document', 'image', 'scorm'].includes(t);
 
-const DOC_PROVIDERS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'];
+// Document lessons are restricted to formats the player can preview inline.
+const DOC_PROVIDERS = ['pdf', 'txt'];
 const SCORM_PROVIDERS = ['scorm 1.2', 'scorm 2004'];
 
 export default function LessonAddForm({ course, sections, lessonType, onDone }) {
@@ -34,6 +35,9 @@ export default function LessonAddForm({ course, sections, lessonType, onDone }) 
     const [textDescription, setTextDescription] = useState('');
     const [duration, setDuration] = useState('00:00:00');
     const [attachment, setAttachment] = useState(null);
+    // Image lessons accept 1..N files. Held in a separate state so the doc
+    // upload (single File) and image upload (File[]) don't collide.
+    const [imageFiles, setImageFiles] = useState([]);
     const [attachmentType, setAttachmentType] = useState(DOC_PROVIDERS[0]);
     const [scormFile, setScormFile] = useState(null);
     const [scormProvider, setScormProvider] = useState(SCORM_PROVIDERS[0]);
@@ -60,6 +64,21 @@ export default function LessonAddForm({ course, sections, lessonType, onDone }) 
         detectFileDuration(file)
             .then((d) => { if (d) setDuration(d); })
             .finally(() => setDetectingDuration(false));
+    };
+
+    // A native file input only reports the files chosen in the most recent
+    // dialog, so APPEND to the existing selection rather than replacing it.
+    // De-dupe by name+size so re-picking the same file doesn't add a clone.
+    const addImageFiles = (picked) => {
+        setImageFiles((prev) => {
+            const seen = new Set(prev.map((f) => `${f.name}-${f.size}`));
+            const next = [...prev];
+            for (const f of picked) {
+                const key = `${f.name}-${f.size}`;
+                if (!seen.has(key)) { seen.add(key); next.push(f); }
+            }
+            return next;
+        });
     };
 
     const submit = async (e) => {
@@ -92,8 +111,11 @@ export default function LessonAddForm({ course, sections, lessonType, onDone }) 
                 fd.append('attachment', attachment);
                 fd.append('attachment_type', attachmentType);
             } else if (lessonType === 'image') {
-                if (!attachment) { toast.error('Please choose an image'); setSaving(false); return; }
-                fd.append('attachment', attachment);
+                if (!imageFiles.length) { toast.error('Please choose at least one image'); setSaving(false); return; }
+                // Multer's upload.fields() expects every file under the same
+                // field name to come through as separate `attachment` parts —
+                // appending the same key N times is the standard pattern.
+                imageFiles.forEach((f) => fd.append('attachment', f));
             } else if (lessonType === 'scorm') {
                 if (!scormFile) { toast.error('Please choose a SCORM zip'); setSaving(false); return; }
                 fd.append('scorm_file', scormFile);
@@ -191,7 +213,7 @@ export default function LessonAddForm({ course, sections, lessonType, onDone }) 
                 <>
                     <div className="mb-3">
                         <label className="ol-form-label">Document file</label>
-                        <input type="file" className="ol-form-control" onChange={(e) => setAttachment(e.target.files?.[0] || null)} required />
+                        <input type="file" className="ol-form-control" accept=".pdf,.txt,application/pdf,text/plain" onChange={(e) => setAttachment(e.target.files?.[0] || null)} required />
                     </div>
                     <div className="mb-3">
                         <label className="ol-form-label">Document type</label>
@@ -204,8 +226,45 @@ export default function LessonAddForm({ course, sections, lessonType, onDone }) 
 
             {lessonType === 'image' && (
                 <div className="mb-3">
-                    <label className="ol-form-label">Image file</label>
-                    <input type="file" className="ol-form-control" accept="image/*" onChange={(e) => setAttachment(e.target.files?.[0] || null)} required />
+                    <label className="ol-form-label">
+                        Image files
+                        <span className="ml-2 text-[12px] text-gray font-normal">
+                            ({imageFiles.length} selected)
+                        </span>
+                    </label>
+                    <input
+                        type="file"
+                        className="ol-form-control"
+                        accept="image/*"
+                        multiple
+                        onChange={(e) => {
+                            addImageFiles(Array.from(e.target.files || []));
+                            // Reset so re-selecting the same file still fires onChange.
+                            e.target.value = '';
+                        }}
+                        required={imageFiles.length === 0}
+                    />
+                    {imageFiles.length > 0 && (
+                        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2 mt-3">
+                            {imageFiles.map((f, i) => (
+                                <div key={`${f.name}-${i}`} className="relative group">
+                                    <img
+                                        src={URL.createObjectURL(f)}
+                                        alt={f.name}
+                                        className="w-full h-20 object-cover rounded border border-gray-200"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setImageFiles((s) => s.filter((_, idx) => idx !== i))}
+                                        className="absolute top-0 right-0 -mt-1 -mr-1 w-5 h-5 rounded-full bg-black/70 text-white text-[11px] leading-none hover:bg-black"
+                                        title="Remove"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
 

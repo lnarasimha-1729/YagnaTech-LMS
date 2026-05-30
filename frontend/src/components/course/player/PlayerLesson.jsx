@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import QuizPlayer from './QuizPlayer';
 
 // Same env var the rest of the app uses (Home/Overview/Programspage). System
@@ -5,6 +6,42 @@ import QuizPlayer from './QuizPlayer';
 // ("uploads/lesson_file/videos/foo.mp4") by CurriculumService, so they need
 // the admin-service origin prepended before they're resolvable in <video>.
 const ADMIN_BASE = (import.meta.env.VITE_ADMIN_API_URL) || 'http://localhost:4000';
+
+// Force-download a remote file as a true browser download. The HTML5
+// `download` attribute is ignored for cross-origin URLs (frontend on :8080,
+// admin-service on :4000), so a plain <a download> just opens the PDF in a
+// new tab. Fetch the bytes, wrap them in a blob URL (same-origin), and
+// click a synthetic anchor to trigger the actual download dialog.
+const triggerDownload = async (url, filename) => {
+    try {
+        // cache: 'no-store' forces a fresh 200 OK with body instead of a 304
+        // (Not Modified) — fetch() returns an empty body on 304, which turns
+        // into an empty blob and a 0-byte download. credentials:'omit' also
+        // avoids any cookie-shaped 401 from admin-service's auth middleware
+        // since the /uploads route is unauthenticated static content.
+        const res = await fetch(url, { cache: 'no-store', credentials: 'omit' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        if (!blob.size) throw new Error('Empty response body');
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename || 'download';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        // Free the blob after the click has registered. 1s is well past any
+        // browser's "starting download…" handoff but short enough not to
+        // leak memory if the user grinds through many lessons.
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch (e) {
+        // Network/permission failure — fall back to a plain navigation so
+        // the user at least sees the file (or the 404, if that's what's
+        // wrong) instead of a silent dead click.
+        console.warn('[download] blob path failed, falling back to direct nav:', e);
+        window.open(url, '_blank', 'noopener');
+    }
+};
 
 // Build a playable URL for a stored upload. Absolute URLs (http://, https://,
 // blob:, data:) pass through unchanged so YouTube/Vimeo/Drive embeds keep
@@ -14,6 +51,21 @@ const resolveUploadUrl = (src) => {
     if (!s) return s;
     if (/^(https?:|blob:|data:)/i.test(s)) return s;
     return `${ADMIN_BASE.replace(/\/$/, '')}/${s.replace(/^\/+/, '')}`;
+};
+
+// Same as resolveUploadUrl, but for the `lesson.attachment` column on image
+// and document_type lessons. CurriculumService.buildLessonData saves only
+// the generated FILENAME there (not the full relative path), so we have to
+// prepend uploads/lesson_file/attachment/ before joining onto ADMIN_BASE.
+// Pass-through for absolute URLs and for values that already include a slash
+// (legacy rows that stored the full path).
+const ATTACHMENT_DIR = 'uploads/lesson_file/attachment';
+const resolveAttachmentUrl = (src) => {
+    const s = String(src || '').trim();
+    if (!s) return s;
+    if (/^(https?:|blob:|data:)/i.test(s)) return s;
+    const relative = s.includes('/') ? s : `${ATTACHMENT_DIR}/${s}`;
+    return `${ADMIN_BASE.replace(/\/$/, '')}/${relative.replace(/^\/+/, '')}`;
 };
 
 const LessonTypeIcon = ({ type }) => {
@@ -70,6 +122,106 @@ export default function PlayerLesson({ lesson, course, locked, lockedMessage, on
     return (
         <div className="rounded-xl overflow-hidden bg-black mb-4">
             <LessonRenderer lesson={lesson} course={course} onLessonEnded={onLessonEnded} onTimeUpdate={onTimeUpdate} />
+        </div>
+    );
+}
+
+// Self-contained image carousel for multi-image lessons. Kept dependency-free
+// and styled to match the dark player chrome (the rest of this file builds its
+// own controls rather than pulling in the shadcn/embla Carousel, which is
+// themed for light surfaces). Shows one image at a time with prev/next arrows,
+// a counter, and dot indicators; wraps around at both ends.
+function ImageCarousel({ urls, title }) {
+    const [index, setIndex] = useState(0);
+    const count = urls.length;
+    const go = (delta) => setIndex((i) => (i + delta + count) % count);
+
+    return (
+        <div className="relative bg-black select-none">
+            <div className="flex items-center justify-center w-full max-h-[80vh] aspect-video overflow-hidden">
+                <img
+                    src={urls[index]}
+                    alt={`${title} ${index + 1} of ${count}`}
+                    className="max-w-full max-h-[80vh] object-contain"
+                    draggable={false}
+                />
+            </div>
+
+            {/* Prev / Next */}
+            <button
+                type="button"
+                onClick={() => go(-1)}
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-black/55 text-white hover:bg-black/80 transition-colors"
+                aria-label="Previous image"
+            >
+                <i className="fa fa-chevron-left" />
+            </button>
+            <button
+                type="button"
+                onClick={() => go(1)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full bg-black/55 text-white hover:bg-black/80 transition-colors"
+                aria-label="Next image"
+            >
+                <i className="fa fa-chevron-right" />
+            </button>
+
+            {/* Counter */}
+            <div className="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-black/55 text-white text-[12px] font-medium">
+                {index + 1} / {count}
+            </div>
+
+            {/* Dot indicators */}
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2">
+                {urls.map((_, i) => (
+                    <button
+                        key={i}
+                        type="button"
+                        onClick={() => setIndex(i)}
+                        className={`h-2.5 rounded-full transition-all ${i === index ? 'w-6 bg-white' : 'w-2.5 bg-white/50 hover:bg-white/75'}`}
+                        aria-label={`Go to image ${i + 1}`}
+                        aria-current={i === index}
+                    />
+                ))}
+            </div>
+        </div>
+    );
+}
+
+// Inline PDF viewer used for both native PDF lessons and the generated PDF
+// rendition of Office documents. Renders via <object> using the browser's
+// built-in PDF viewer; #toolbar=0&navpanes=0&scrollbar=1 hides the floating
+// toolbar and thumbnail pane (Chromium/Firefox honour it). A floating Download
+// button replaces the hidden toolbar's download action.
+function PdfViewer({ src, downloadName, title }) {
+    const pdfSrc = `${src}#toolbar=0&navpanes=0&scrollbar=1`;
+    return (
+        <div className="relative w-full h-[80vh] bg-white">
+            <object data={pdfSrc} type="application/pdf" className="w-full h-full">
+                <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+                    <i className="fa fa-file-pdf text-[48px] text-[#177385] mb-4" />
+                    <p className="text-gray-700 font-semibold mb-1">{title}</p>
+                    <p className="text-gray-500 text-sm mb-5">
+                        Inline preview isn't available in this browser.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => triggerDownload(src, downloadName)}
+                        className="ol-btn-primary"
+                    >
+                        <i className="fa fa-download mr-2" />
+                        Download
+                    </button>
+                </div>
+            </object>
+            <button
+                type="button"
+                onClick={() => triggerDownload(src, downloadName)}
+                className="absolute top-3 right-3 z-10 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-black/70 text-white text-[13px] font-medium hover:bg-black/85 shadow-md"
+                title="Download"
+            >
+                <i className="fa fa-download" />
+                Download
+            </button>
         </div>
     );
 }
@@ -149,27 +301,79 @@ function LessonRenderer({ lesson, course, onLessonEnded, onTimeUpdate }) {
     }
 
     if (t === 'image') {
-        const imgUrl = resolveUploadUrl(lesson.attachment || lesson.lesson_src);
-        return <img src={imgUrl} alt={lesson.title} className="w-full max-h-[80vh] object-contain bg-black" />;
-    }
-
-    if (t === 'document_type') {
-        const src = resolveUploadUrl(lesson.lesson_src || lesson.attachment);
-        if (lesson.attachment_type === 'pdf') {
-            return <iframe src={src} className="w-full h-[80vh] bg-white" title={lesson.title} />;
+        // CurriculumService stores image lessons in one of two shapes on
+        // lesson.attachment:
+        //   - JSON array of filenames (new multi-image format)
+        //   - single filename string (legacy pre-multi rows)
+        // Normalise both to string[] and render a grid for >1, a single
+        // hero image for exactly 1. resolveAttachmentUrl prepends the
+        // uploads/lesson_file/attachment/ directory so each <img> resolves.
+        const raw = String(lesson.attachment || lesson.lesson_src || '').trim();
+        const names = (() => {
+            if (!raw) return [];
+            if (raw.startsWith('[')) {
+                try {
+                    const arr = JSON.parse(raw);
+                    return Array.isArray(arr) ? arr.filter(Boolean).map(String) : [];
+                } catch { return [raw]; }
+            }
+            return [raw];
+        })();
+        if (names.length === 0) {
+            return <div className="bg-black/40 p-6 text-white/70 text-center">No image attached</div>;
         }
-        if (['doc', 'ppt'].includes(lesson.attachment_type)) {
-            // Office viewer needs an ABSOLUTE, publicly reachable URL — passing
-            // a relative path here would render an error page inside the iframe.
+        if (names.length === 1) {
             return (
-                <iframe
-                    src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(src)}`}
-                    className="w-full h-[80vh] bg-white"
-                    title={lesson.title}
+                <img
+                    src={resolveAttachmentUrl(names[0])}
+                    alt={lesson.title}
+                    className="w-full max-h-[80vh] object-contain bg-black"
                 />
             );
         }
-        return <iframe src={src} className="w-full h-[80vh] bg-white" title={lesson.title} />;
+        return (
+            <ImageCarousel
+                urls={names.map(resolveAttachmentUrl)}
+                title={lesson.title}
+                key={lesson.id}
+            />
+        );
+    }
+
+    if (t === 'document_type') {
+        // Document lessons are restricted to PDF and plain text (the admin
+        // form only offers those). lesson_src is empty for uploaded documents —
+        // the file name is stored in lesson.attachment.
+        const src = resolveAttachmentUrl(lesson.attachment || lesson.lesson_src);
+        // attachment_type is the extension (e.g. "pdf", "txt"). Trust the
+        // filename's actual extension as a fallback when attachment_type wasn't
+        // set (older rows / direct DB inserts).
+        const declaredExt = String(lesson.attachment_type || '').toLowerCase();
+        const filenameExt = String(lesson.attachment || lesson.lesson_src || '')
+            .split('.').pop().toLowerCase();
+        const ext = declaredExt || filenameExt;
+        if (ext === 'txt') {
+            // Plain text renders inline in a same-origin <iframe>; the browser
+            // displays it as text. Download stays available via the toolbar.
+            const downloadName = lesson.title ? `${lesson.title}.txt` : (lesson.attachment || 'document.txt');
+            return (
+                <div className="relative w-full h-[80vh] bg-white">
+                    <iframe src={src} className="w-full h-full" title={lesson.title} />
+                    <button
+                        type="button"
+                        onClick={() => triggerDownload(src, downloadName)}
+                        className="absolute top-3 right-3 z-10 inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-black/70 text-white text-[13px] font-medium hover:bg-black/85 shadow-md"
+                        title="Download"
+                    >
+                        <i className="fa fa-download" />
+                        Download
+                    </button>
+                </div>
+            );
+        }
+        // Default: PDF (the only other allowed document type).
+        const downloadName = lesson.title ? `${lesson.title}.pdf` : (lesson.attachment || 'document.pdf');
+        return <PdfViewer src={src} downloadName={downloadName} title={lesson.title} />;
     }
 
     if (t === 'quiz') {

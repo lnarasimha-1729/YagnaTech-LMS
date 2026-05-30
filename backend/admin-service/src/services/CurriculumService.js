@@ -69,6 +69,26 @@ const handleScormUpload = (file) => {
 };
 
 const pickFile = (files, key) => files && files[key] && files[key][0];
+// Returns the full array of uploaded files under `key`, or an empty array.
+// Used by the image-lesson path which now accepts 1..N images per lesson.
+const pickFiles = (files, key) => (files && files[key]) ? files[key] : [];
+
+// Image lessons store one of:
+//   - a JSON array of filenames (new multi-image format)
+//   - a single filename string (legacy single-image rows pre-multi)
+// Both are normalised to a string[] here so delete / update paths don't
+// need to branch.
+const parseImageAttachment = (raw) => {
+    const s = String(raw || '').trim();
+    if (!s) return [];
+    if (s.startsWith('[')) {
+        try {
+            const arr = JSON.parse(s);
+            return Array.isArray(arr) ? arr.filter(Boolean).map(String) : [];
+        } catch { return []; }
+    }
+    return [s];
+};
 
 // ===== Sections =====
 
@@ -155,10 +175,17 @@ const buildLessonData = (b, files) => {
             break;
         }
         case 'image': {
-            const f = pickFile(files, 'attachment');
-            if (f) {
-                data.attachment = moveTo(f, 'uploads/lesson_file/attachment');
-                data.attachment_type = fileExt(f.originalname);
+            // Image lessons accept 1..N files. We always persist as a JSON
+            // array in `attachment` (even for a single file) so the player
+            // has one render path. attachment_type stays as the extension of
+            // the FIRST file for legacy filters that read it; multi-extension
+            // galleries (e.g. PNG + JPG) still render correctly because the
+            // player uses each filename's own extension.
+            const fs_ = pickFiles(files, 'attachment');
+            if (fs_.length) {
+                const names = fs_.map((f) => moveTo(f, 'uploads/lesson_file/attachment'));
+                data.attachment = JSON.stringify(names);
+                data.attachment_type = fileExt(fs_[0].originalname);
             }
             break;
         }
@@ -234,12 +261,50 @@ const updateLesson = async ({ body, files }) => {
             break;
         }
         case 'image': {
-            const f = pickFile(files, 'attachment');
-            if (f) {
-                if (lesson.attachment) removeFile(`uploads/lesson_file/attachment/${lesson.attachment}`);
-                data.attachment = moveTo(f, 'uploads/lesson_file/attachment');
-                data.attachment_type = fileExt(f.originalname);
+            // Edit semantics: new uploads are APPENDED to the existing set,
+            // not a replacement. So an admin who already saved 3 images and
+            // uploads 2 more ends up with 5. No upload → existing column is
+            // left untouched. Deletion of individual images happens via the
+            // explicit `remove_images` body field (JSON array of filenames).
+            const fs_ = pickFiles(files, 'attachment');
+            const existing = parseImageAttachment(lesson.attachment);
+            const toRemove = (() => {
+                try {
+                    const raw = b.remove_images;
+                    if (!raw) return [];
+                    const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                    return Array.isArray(arr) ? arr.map(String) : [];
+                } catch { return []; }
+            })();
+
+            let touched = false;
+            let next = existing;
+
+            // 1. Drop any filenames the admin asked to remove. Delete their
+            //    physical files first so the disk doesn't leak orphans.
+            if (toRemove.length) {
+                toRemove.forEach((name) => {
+                    if (existing.includes(name)) {
+                        removeFile(`uploads/lesson_file/attachment/${name}`);
+                    }
+                });
+                next = next.filter((n) => !toRemove.includes(n));
+                touched = true;
             }
+
+            // 2. Append any newly uploaded files to the end of the set.
+            if (fs_.length) {
+                const added = fs_.map((f) => moveTo(f, 'uploads/lesson_file/attachment'));
+                next = [...next, ...added];
+                touched = true;
+                // Keep attachment_type aligned with the first image overall
+                // (existing set takes precedence; falls back to first new).
+                if (!lesson.attachment_type) {
+                    data.attachment_type = fileExt(fs_[0].originalname);
+                }
+            }
+
+            if (touched) data.attachment = JSON.stringify(next);
             break;
         }
         case 'scorm': {
@@ -283,8 +348,14 @@ const deleteLesson = async (id) => {
 
     if (lesson.lesson_type === 'scorm' && lesson.attachment) {
         removeDir(`uploads/lesson_file/scorm_content/${lesson.attachment}`);
-    } else if (lesson.attachment && (lesson.lesson_type === 'document_type' || lesson.lesson_type === 'image')) {
+    } else if (lesson.attachment && lesson.lesson_type === 'document_type') {
         removeFile(`uploads/lesson_file/attachment/${lesson.attachment}`);
+    } else if (lesson.attachment && lesson.lesson_type === 'image') {
+        // Image lessons may store multiple filenames as a JSON array;
+        // parseImageAttachment normalises legacy single-string rows too.
+        parseImageAttachment(lesson.attachment).forEach((name) => {
+            removeFile(`uploads/lesson_file/attachment/${name}`);
+        });
     }
     if (lesson.lesson_src && lesson.lesson_type === 'system-video') {
         removeFile(lesson.lesson_src);

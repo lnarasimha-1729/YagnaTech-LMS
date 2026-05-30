@@ -11,7 +11,10 @@ const stats = async () => {
         dashRepo.safeCount('courses'),
         dashRepo.safeCount('lessons'),
         dashRepo.safeCount('user_progress', 'enrolled = 1'),
-        dashRepo.safeCount('users', "role = 'student'"),
+        // users.role doesn't exist as a column — role lives on roles.role and
+        // joins via users.roleId. Count students by joining instead so the
+        // tile stops silently rendering 0.
+        dashRepo.countStudents(),
     ]);
 
     const status_counts = { active: 0, upcoming: 0, pending: 0, private: 0, draft: 0, inactive: 0 };

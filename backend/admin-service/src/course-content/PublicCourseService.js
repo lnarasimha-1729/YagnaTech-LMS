@@ -403,11 +403,18 @@ const playerData = async (slug, lessonIdRaw, userIdRaw) => {
             section_id: currentLessonRow.section_id,
             course_id: currentLessonRow.course_id,
             title: currentLessonRow.title,
+            summary: currentLessonRow.summary || '',
             duration: currentLessonRow.duration || '00:00:00',
             lesson_type: currentLessonRow.lesson_type,
             is_free: currentLessonRow.is_free || 0,
             lesson_src: currentLessonRow.lesson_src || '',
             attachment: currentLessonRow.attachment || '',
+            // Needed by the player to choose the right viewer (Office docs,
+            // SCORM, etc.). PDFs happened to work without it because the
+            // renderer falls back to the filename extension, but uploaded
+            // Office files are stored under a token filename with no usable
+            // extension, so they require the explicit attachment_type.
+            attachment_type: currentLessonRow.attachment_type || '',
             description: currentLessonRow.description || '',
             sort: currentLessonRow.sort,
             // Quiz-only admin-set metadata — shown on the cover/intro screen

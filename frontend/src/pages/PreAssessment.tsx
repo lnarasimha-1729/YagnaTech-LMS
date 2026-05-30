@@ -67,7 +67,11 @@ export default function PreAssessment() {
         const res = await getAssessment(assessmentId);
         setAssessment(res.data);
 
-        const initialTime = res.data.timer || 1800; // default 30 mins
+        // Timer and question list both come from the assessment row in the
+        // DB (assessments.timer + questionsets.questions). No client-side
+        // fallback — if the admin hasn't configured a timer, show 0 and let
+        // the UI surface that instead of silently inventing 30 minutes.
+        const initialTime = Number(res.data.timer) || 0;
         initialTimeRef.current = initialTime;
         timeLeftRef.current = initialTime;
         setTimeLeft(initialTime);
@@ -200,6 +204,13 @@ export default function PreAssessment() {
   if (!assessment) return <div className="p-10 text-red-500">Assessment not found</div>;
 
   const questions = assessment.questions || [];
+  // Total marks and per-question marks come from the assessment row. Marks
+  // per question = totalMarks / questionCount so the header stays accurate
+  // even when the admin changes either value without redeploying.
+  const totalMarks = Number(assessment.score) || 0;
+  const marksPerQuestion = questions.length > 0
+    ? +(totalMarks / questions.length).toFixed(2)
+    : 0;
 
   // 🟦 Submit handler (calculate score + update backend)
   const handleSubmit = () => {
@@ -218,9 +229,9 @@ export default function PreAssessment() {
         {/* HEADER INFO */}
         <div className="flex justify-between items-center mb-4">
           <div className="text-sm text-gray-600 font-medium">
-            Total Marks: <span className="text-[#177385] font-bold">100</span>
+            Total Marks: <span className="text-[#177385] font-bold">{totalMarks}</span>
             &nbsp;|&nbsp; Questions: <span className="text-[#177385] font-bold">{questions.length}</span>
-            &nbsp;|&nbsp; Marks per Question: <span className="text-[#177385] font-bold">5</span>
+            &nbsp;|&nbsp; Marks per Question: <span className="text-[#177385] font-bold">{marksPerQuestion}</span>
           </div>
           {/* ⏳ TIMER */}
           <div className={`text-md font-bold ${timeLeft > 300 ? "text-black" : "text-red-600"}`}>
@@ -244,7 +255,7 @@ export default function PreAssessment() {
 
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 font-medium">
-                      5 Marks
+                      {marksPerQuestion} Marks
                     </span>
                     <span
                       className={`px-2 py-1 text-xs rounded-full ${q.questionSeverity === "easy"

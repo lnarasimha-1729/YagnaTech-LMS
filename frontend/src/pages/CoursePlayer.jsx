@@ -68,38 +68,67 @@ export default function CoursePlayer() {
         }
     };
 
-    // Latest playback time (in seconds) reported by the <video> element. For non-<video>
-    // lesson types we fall back to wall-clock elapsed time since the lesson opened.
+    // Latest playback time (in seconds) reported by a native <video> element.
+    // For iframe lesson types (YouTube / Vimeo / Google Drive) the player
+    // can't observe playback at all, so we fall back to wall-clock seconds
+    // the lesson has been on screen. Pure wall-clock for native <video>
+    // would falsely complete a paused tab — so the rule is: use whichever
+    // signal the lesson type can actually emit.
     const playbackTimeRef = useRef(0);
     const lessonOpenedAtRef = useRef(Date.now());
 
+    // Lesson types whose UI is an <iframe>. These never fire timeupdate, so
+    // their watched-seconds signal is wall-clock — same approach Udemy/Coursera
+    // use for embedded video they don't host.
+    const IFRAME_LESSON_TYPES = ['video-url', 'vimeo-url', 'google_drive'];
+
     const handleTimeUpdate = (t) => { playbackTimeRef.current = Number(t) || 0; };
 
-    // Auto-tick: every 5s, post the latest playback position. The server applies the
-    // 30%-of-duration rule and pushes the lesson into completed_lesson when reached.
+    // Auto-tick: every 5s, post the watched-seconds count. The server
+    // applies the configured drip rule (minimum_percentage or
+    // minimum_duration) and flips the lesson into completed_lesson when the
+    // threshold is reached.
     useEffect(() => {
         if (!data?.lesson) return;
         const VIDEO_TYPES = ['video-url', 'system-video', 'vimeo-url', 'html5', 'google_drive'];
         const lesson = data.lesson;
+        console.log('[player tick] lesson_type =', lesson.lesson_type, '| is video?', VIDEO_TYPES.includes(lesson.lesson_type));
         if (!VIDEO_TYPES.includes(lesson.lesson_type)) return;
 
+        const isIframe = IFRAME_LESSON_TYPES.includes(lesson.lesson_type);
         playbackTimeRef.current = 0;
         lessonOpenedAtRef.current = Date.now();
         let lastReported = -1;
         let stopped = false;
+        console.log('[player tick] interval started. isIframe =', isIframe, '| course_id =', data.course.id, '| lesson_id =', lesson.id);
 
         const interval = setInterval(async () => {
             if (stopped) return;
-            const wallElapsed = Math.floor((Date.now() - lessonOpenedAtRef.current) / 1000);
-            const playbackElapsed = Math.floor(playbackTimeRef.current);
-            const current = Math.max(playbackElapsed, wallElapsed);
-            // Round to nearest 5s tick (server bucket size) and skip duplicates.
+            // Iframe lessons: count wall-clock seconds since the lesson
+            // opened, BUT only while the tab is visible — otherwise a
+            // student could background the tab and silently auto-complete.
+            // Native <video>: use the real playback position from the
+            // timeupdate event, so pausing doesn't keep advancing.
+            let current;
+            if (isIframe) {
+                if (typeof document !== 'undefined' && document.hidden) {
+                    console.log('[player tick] tab hidden, skip');
+                    return;
+                }
+                current = Math.floor((Date.now() - lessonOpenedAtRef.current) / 1000);
+            } else {
+                current = Math.floor(playbackTimeRef.current);
+            }
+            // Round down to the nearest 5s tick (server bucket size) and
+            // skip duplicates.
             const tick = Math.floor(current / 5) * 5;
+            console.log('[player tick] current =', current, '| tick =', tick, '| lastReported =', lastReported);
             if (tick <= 0 || tick === lastReported) return;
             lastReported = tick;
 
             try {
                 const result = await updateLessonProgress(data.course.id, lesson.id, tick);
+                console.log('[player tick] server result =', result);
                 if (result?.is_completed === 1 && !(data.history?.completed_lesson || []).includes(lesson.id)) {
                     const fresh = await getPlayer(slug, lesson.id);
                     if (!stopped) setData(fresh);
