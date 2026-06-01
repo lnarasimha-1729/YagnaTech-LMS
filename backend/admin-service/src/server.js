@@ -105,6 +105,21 @@ app.get('/api/public/colleges', async (_req, res, next) => {
     } catch (e) { next(e); }
 });
 
+// Public contact form ("Get in Touch" / "Partner with Us"). Stores the
+// submission and queues an admin notification email. Unauthenticated by design.
+const contactService = require('./services/ContactService');
+app.post('/api/public/contact', express.json(), async (req, res) => {
+    try {
+        const { firstName, lastName, email, subject, message } = req.body || {};
+        const result = await contactService.submit({ firstName, lastName, email, subject, message });
+        return res.status(201).json({ ok: true, id: result.id });
+    } catch (e) {
+        if (e && e.status) return res.status(e.status).json({ error: e.message });
+        console.warn('[public/contact] failed:', e.message);
+        return res.status(500).json({ error: 'Failed to send your message' });
+    }
+});
+
 // Public programs list — used by the student-facing Programs page so the
 // admin-curated set drives what students see. Only active programs surface.
 //
@@ -628,6 +643,16 @@ sequelize.authenticate()
             await CourseReview.sync();
         } catch (e) {
             console.warn('[course_reviews] table sync failed:', e.message);
+        }
+
+        // contact_messages: public contact-form submissions. Created on startup
+        // so the public POST /api/public/contact can persist; no-op once it
+        // exists.
+        try {
+            const { ContactMessage } = require('./models');
+            await ContactMessage.sync();
+        } catch (e) {
+            console.warn('[contact_messages] table sync failed:', e.message);
         }
 
         // courses.has_certificate: per-course toggle for "this course grants

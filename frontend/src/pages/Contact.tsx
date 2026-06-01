@@ -1,12 +1,13 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { 
-  Mail, 
-  Phone, 
-  MapPin, 
+import {
+  Mail,
+  Phone,
+  MapPin,
   Clock,
   Users,
   Heart,
@@ -14,10 +15,60 @@ import {
   HelpCircle,
   Briefcase,
   Globe,
-  Send
+  Send,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
+import { sendContactMessage } from "@/api/contactApi";
 
 const Contact = () => {
+  // Controlled contact form. Posts to /api/public/contact (admin-service),
+  // which stores the message and emails the admin.
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    subject: "",
+    message: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const set = (k: keyof typeof form, v: string) =>
+    setForm((s) => ({ ...s, [k]: v }));
+
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
+  const canSubmit =
+    form.firstName.trim() && emailValid && form.message.trim() && !submitting;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!form.firstName.trim()) return setError("Please enter your first name.");
+    if (!emailValid) return setError("Please enter a valid email address.");
+    if (!form.message.trim()) return setError("Please enter a message.");
+
+    setSubmitting(true);
+    try {
+      await sendContactMessage({
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim() || undefined,
+        email: form.email.trim(),
+        subject: form.subject.trim() || undefined,
+        message: form.message.trim(),
+      });
+      setSent(true);
+      setForm({ firstName: "", lastName: "", email: "", subject: "", message: "" });
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ||
+        "Failed to send your message. Please try again.";
+      setError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
   const contactMethods = [
     {
       icon: Mail,
@@ -175,41 +226,102 @@ const Contact = () => {
               </div>
 
               <Card className="card-ngo border-0">
-                <CardContent className="p-6 space-y-6">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name</Label>
-                      <Input id="firstName" placeholder="Your first name" />
+                <CardContent className="p-6">
+                  {sent ? (
+                    <div className="py-10 text-center space-y-3">
+                      <CheckCircle2 className="w-12 h-12 text-warm-green mx-auto" />
+                      <h3 className="text-xl font-semibold">Message sent!</h3>
+                      <p className="text-muted-foreground">
+                        Thanks for reaching out — we'll get back to you soon.
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={() => setSent(false)}
+                        className="mt-2"
+                      >
+                        Send another message
+                      </Button>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name</Label>
-                      <Input id="lastName" placeholder="Your last name" />
-                    </div>
-                  </div>
+                  ) : (
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                      {error && (
+                        <div className="rounded-md bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2">
+                          {error}
+                        </div>
+                      )}
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="firstName">First Name</Label>
+                          <Input
+                            id="firstName"
+                            placeholder="Your first name"
+                            value={form.firstName}
+                            onChange={(e) => set("firstName", e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="lastName">Last Name</Label>
+                          <Input
+                            id="lastName"
+                            placeholder="Your last name"
+                            value={form.lastName}
+                            onChange={(e) => set("lastName", e.target.value)}
+                          />
+                        </div>
+                      </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input id="email" type="email" placeholder="your.email@example.com" />
-                  </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="email">Email Address</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="your.email@example.com"
+                          value={form.email}
+                          onChange={(e) => set("email", e.target.value)}
+                        />
+                      </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="subject">Subject</Label>
-                    <Input id="subject" placeholder="What is this regarding?" />
-                  </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="subject">Subject</Label>
+                        <Input
+                          id="subject"
+                          placeholder="What is this regarding?"
+                          value={form.subject}
+                          onChange={(e) => set("subject", e.target.value)}
+                        />
+                      </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="message">Message</Label>
-                    <Textarea 
-                      id="message" 
-                      placeholder="Tell us how we can help you..."
-                      rows={6}
-                    />
-                  </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="message">Message</Label>
+                        <Textarea
+                          id="message"
+                          placeholder="Tell us how we can help you..."
+                          rows={6}
+                          value={form.message}
+                          onChange={(e) => set("message", e.target.value)}
+                        />
+                      </div>
 
-                  <Button className="w-full bg-gradient-hero border-0" size="lg">
-                    <Send className="w-4 h-4 mr-2" />
-                    Send Message
-                  </Button>
+                      <Button
+                        type="submit"
+                        disabled={!canSubmit}
+                        className="w-full bg-gradient-hero border-0 disabled:opacity-60"
+                        size="lg"
+                      >
+                        {submitting ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Sending…
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4 mr-2" />
+                            Send Message
+                          </>
+                        )}
+                      </Button>
+                    </form>
+                  )}
                 </CardContent>
               </Card>
             </div>

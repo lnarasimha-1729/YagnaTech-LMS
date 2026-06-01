@@ -439,7 +439,7 @@ const Companies = () => {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button size="lg" className="bg-gradient-hero border-0 text-lg px-8" asChild>
-                <Link to="/signup">Partner with Us</Link>
+                <Link to="/contact">Partner with Us</Link>
               </Button>
               {/* <Button variant="outline" size="lg" className="text-lg px-8" asChild>
                 <Link to="/contact">Need Guidance?</Link>
