@@ -330,6 +330,31 @@ All colors MUST be HSL.
   line-height: 20px;
 }
 
+/* Course tab table: cap the height so long course lists get an inner vertical
+   scrollbar instead of growing the page, keeping the existing horizontal
+   scroll. The header stays pinned while the body scrolls. */
+.e-table-scroll-y {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.e-table-scroll-y .e-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* Scrollable, but with the scrollbar hidden (e.g. the admin sidebar). Content
+   still scrolls via wheel/trackpad/keyboard — only the visible bar is removed. */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE/old Edge */
+  scrollbar-width: none;    /* Firefox */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;            /* Chrome/Safari/Edge */
+}
+
 /* Course details / player helpers (ported from mern-course) */
 .ol-tab {
   display: inline-flex;

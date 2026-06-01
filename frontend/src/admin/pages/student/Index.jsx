@@ -241,7 +241,7 @@ export default function StudentIndex() {
                                 wide table scrolls here instead of widening
                                 the page. w-full + max-w-full + min-w-0 make
                                 the box clip rather than grow to fit content. */}
-                            <div className="w-full max-w-full min-w-0 overflow-x-auto">
+                            <div className="w-full max-w-full min-w-0 overflow-x-auto e-table-scroll-y">
                                 <table className="e-table">
                                     <thead>
                                         <tr>
@@ -249,11 +249,12 @@ export default function StudentIndex() {
                                             <th scope="col">Name</th>
                                             <th scope="col">Phone</th>
                                             <th scope="col">College</th>
+                                            <th scope="col">Batch</th>
                                             <th scope="col">Enrolled Courses</th>
                                             <th scope="col">Program Interested</th>
-                                            <th scope="col">Batch</th>
                                             <th scope="col">Pre-Assessment</th>
                                             <th scope="col">Post-Assessment</th>
+                                            <th scope="col">Course Status</th>
                                             <th scope="col">Certificate Status</th>
                                             <th scope="col">Program Request</th>
                                             <th scope="col">Request Status</th>
@@ -264,22 +265,37 @@ export default function StudentIndex() {
                                         {rows.map((s, i) => (
                                             <tr key={s.id}>
                                                 <td>{((data.page || 1) - 1) * (data.per_page || rows.length) + i + 1}</td>
-                                                <td className="min-w-[200px]">
-                                                    <div className="flex items-center gap-2">
+                                                <td className="min-w-[220px]">
+                                                    <div className="flex items-center gap-3">
                                                         <img
                                                             src={avatarUrl(s)}
-                                                            className="w-[45px] h-[45px] rounded-full object-cover"
+                                                            className="w-[42px] h-[42px] rounded-full object-cover shrink-0"
                                                             alt=""
                                                         />
-                                                        <div>
-                                                            <h4 className="text-[14px] font-semibold text-dark m-0">{s.name}</h4>
-                                                            <p className="text-[12px] text-gray m-0">{s.email}</p>
+                                                        <div className="min-w-0">
+                                                            <h4 className="text-[14px] font-semibold text-dark m-0 truncate" title={s.name}>
+                                                                {s.name || '—'}
+                                                            </h4>
+                                                            <p className="text-[12px] text-gray m-0 truncate" title={s.email}>
+                                                                {s.email}
+                                                            </p>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td><p className="m-0">{s.phone || '-'}</p></td>
-                                                <td>
-                                                    <p className="m-0">{s.college || <span className="text-gray">Not selected</span>}</p>
+                                                <td className="min-w-[130px]">
+                                                    {s.phone
+                                                        ? <span className="text-[13px] text-dark whitespace-nowrap">{s.phone}</span>
+                                                        : <span className="text-[12px] text-gray">—</span>}
+                                                </td>
+                                                <td className="min-w-[160px]">
+                                                    {s.college
+                                                        ? <span className="text-[13px] text-dark">{s.college}</span>
+                                                        : <span className="text-[12px] text-gray">Not selected</span>}
+                                                </td>
+                                                <td className="min-w-[120px]">
+                                                    {s.batch
+                                                        ? <span className="text-[13px] text-dark">{s.batch}</span>
+                                                        : <span className="text-[12px] text-gray">—</span>}
                                                 </td>
                                                 <td className="min-w-[180px]">
                                                     <EnrolledCoursesCell courses={s.enrolled_courses} />
@@ -289,13 +305,6 @@ export default function StudentIndex() {
                                                         <span className="text-[13px]">{s.program_interested}</span>
                                                     ) : (
                                                         <span className="text-[12px] text-gray">Not selected</span>
-                                                    )}
-                                                </td>
-                                                <td>
-                                                    {s.batch ? (
-                                                        <span className="text-[13px]">{s.batch}</span>
-                                                    ) : (
-                                                        <span className="text-[12px] text-gray">—</span>
                                                     )}
                                                 </td>
                                                 <td className="min-w-[160px]">
@@ -337,6 +346,9 @@ export default function StudentIndex() {
                                                     ) : (
                                                         <span className="text-[12px] text-gray">Not taken</span>
                                                     )}
+                                                </td>
+                                                <td className="min-w-[200px]">
+                                                    <CourseStatusCell courses={s.enrolled_courses} />
                                                 </td>
                                                 <td className="min-w-[140px]">
                                                     <CertificateStatusBadge cert={s.certificate} />
@@ -577,6 +589,25 @@ function EnrolledCoursesCell({ courses }) {
                     +{hidden.length} more
                 </span>
             )}
+        </div>
+    );
+}
+
+// Per-course completion for the Course Status column. Lists each enrolled
+// course with just its progress % (computed server-side from
+// lesson_completions vs total lessons).
+function CourseStatusCell({ courses }) {
+    const rows = Array.isArray(courses) ? courses : [];
+    if (rows.length === 0) {
+        return <span className="text-[12px] text-gray">No courses</span>;
+    }
+    return (
+        <div className="flex flex-wrap items-center gap-2">
+            {rows.map((c) => (
+                <span key={c.id} className="text-[13px] font-semibold text-skin">
+                    {Number(c.progress_pct) || 0}%
+                </span>
+            ))}
         </div>
     );
 }

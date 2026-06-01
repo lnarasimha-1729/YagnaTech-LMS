@@ -27,46 +27,46 @@ import {
 const ADMIN_BASE =
   (import.meta.env.VITE_ADMIN_API_URL as string) || "http://localhost:4000";
 
-interface HomeCategory {
+interface HomeProgram {
   id: number;
   title: string;
   description: string;
-  // keywords is a comma-separated string in the admin model; we split it into
-  // the card's bullet list so what an admin types under a category shows here.
+  // Program features (JSON array in the admin model) become the card's bullets.
   bullets: string[];
 }
 
 const Home = () => {
-  // "Opportunities for Students" cards. Previously a hardcoded 3-item array
-  // ("AI Frontier Program", etc.); now driven by the categories an admin
-  // creates. This is a public, pre-login page so we call /api/public/categories
-  // without a clgId — the backend returns the full category tree in that mode.
-  const [programCategories, setProgramCategories] = useState<HomeCategory[]>([]);
+  // "Opportunities for Students" cards — the top 3 active programs the admin
+  // created, regardless of college. This is a public, pre-login page so we call
+  // /api/public/programs WITHOUT a clgId or user_id: in that mode the backend
+  // returns every active program (is_active !== false) across all colleges,
+  // ordered by the admin's `sort` (then id). We take the first 3. Inactive
+  // programs (the "active" checkbox left unchecked at creation) never surface.
+  const [programs, setPrograms] = useState<HomeProgram[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const { data } = await axios.get(`${ADMIN_BASE}/api/public/categories`, {
+        const { data } = await axios.get(`${ADMIN_BASE}/api/public/programs`, {
           timeout: 30000,
         });
         if (cancelled) return;
-        const cats = Array.isArray(data?.categories) ? data.categories : [];
-        setProgramCategories(
-          cats.map((c: any) => ({
-            id: Number(c.id),
-            title: String(c.title || ""),
-            description: String(c.description || ""),
-            bullets: String(c.keywords || "")
-              .split(",")
-              .map((s: string) => s.trim())
-              .filter(Boolean),
+        const rows = Array.isArray(data?.programs) ? data.programs : [];
+        setPrograms(
+          rows.slice(0, 3).map((p: any) => ({
+            id: Number(p.id),
+            title: String(p.title || ""),
+            description: String(p.tagline || ""),
+            bullets: Array.isArray(p.features)
+              ? p.features.map((f: any) => String(f).trim()).filter(Boolean)
+              : [],
           })),
         );
       } catch {
         // Network/API failure: leave the list empty. The section renders an
         // empty-state line rather than stale hardcoded programs.
-        if (!cancelled) setProgramCategories([]);
+        if (!cancelled) setPrograms([]);
       }
     })();
     return () => { cancelled = true; };
@@ -377,14 +377,14 @@ const Home = () => {
             </p> */}
           </div>
 
-          {programCategories.length === 0 && (
+          {programs.length === 0 && (
             <p className="text-center text-muted-foreground">
               No programs available yet.
             </p>
           )}
 
           <div className="roadmapt grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {programCategories.map((action, index) => {
+            {programs.map((action, index) => {
               // Cycle the three original lucide icons so cards keep their
               // visual variety regardless of how many categories an admin adds.
               const Icon = [Globe, GraduationCap, Building2][index % 3];

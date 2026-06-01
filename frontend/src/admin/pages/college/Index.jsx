@@ -146,13 +146,14 @@ export default function CollegeIndex() {
                                 </p>
                                 {loading && <span className="text-[12px] text-gray">Refreshing…</span>}
                             </div>
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto e-table-scroll-y">
                                 <table className="e-table">
                                     <thead>
                                         <tr>
                                             <th scope="col">#</th>
                                             <th scope="col">College Name</th>
                                             <th scope="col">College ID</th>
+                                            <th scope="col">YAG ID</th>
                                             <th scope="col">Batches</th>
                                             <th scope="col">Options</th>
                                         </tr>
@@ -169,6 +170,11 @@ export default function CollegeIndex() {
                                                 </td>
                                                 <td>
                                                     <p className="m-0 text-dark">{c.clgId}</p>
+                                                </td>
+                                                <td>
+                                                    {c.yagId
+                                                        ? <span className="font-semibold text-skin tracking-wide">{c.yagId}</span>
+                                                        : <span className="text-gray">—</span>}
                                                 </td>
                                                 <td>
                                                     <span className="inline-block px-2 py-0.5 rounded text-[12px] font-semibold bg-skin/10 text-skin">

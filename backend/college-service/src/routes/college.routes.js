@@ -16,6 +16,11 @@ router.post('/add', isLoggedIn, authRoles(['admin']), controller.addCollege);
 // lost (cookie didn't survive the cross-service hop through Bastion).
 // The list contains only clgId / clgName / address — no sensitive fields.
 router.get('/all', controller.getAllColleges);
+// Public lookup by college code — the signup form resolves a student's college
+// from the 4-char code before an account exists, so it can't require auth.
+// Declared before '/:clgId' so the literal '/code' segment isn't swallowed by
+// the param route.
+router.get('/code/:code', controller.getCollegeByCode);
 router.get('/:clgId', isLoggedIn, authRoles(['admin', 'user']), controller.getCollegeById);
 router.put('/update/:clgId', isLoggedIn, authRoles(['admin', 'user']), controller.updateCollege);
 router.delete('/delete/:clgId', isLoggedIn, authRoles(['admin']), controller.deleteCollege);

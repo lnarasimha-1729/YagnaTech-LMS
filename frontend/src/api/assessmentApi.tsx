@@ -15,6 +15,23 @@ export const getAssessment = (assessmentId: string) => {
   return axiosInstance.get<Assessment>(`/assessment/${assessmentId}`);
 };
 
+// Student-readable resolver for the welcome page: the active pre-assessment,
+// preferring the student's college when clgId is supplied. Avoids the
+// admin-only /assessment/all listing.
+export interface ActivePreAssessment {
+  assessmentId: string;
+  type: string;
+  timer: number;
+  status: string;
+  questionCount: number;
+}
+
+export const getActivePreAssessment = (clgId?: string) => {
+  return axiosInstance.get<ActivePreAssessment>("/assessment/active/pre", {
+    params: clgId ? { clgId } : undefined,
+  });
+};
+
 
 export const updateAssessment = (assessmentId, assessmentData) => {
   return axiosInstance.put(`/assessment/${assessmentId}`, assessmentData);

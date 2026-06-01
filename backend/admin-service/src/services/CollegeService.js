@@ -3,6 +3,14 @@ const authDb = require('../config/authDatabase');
 const College = require('../models/College');
 const { Batch } = require('../models');
 const { HttpError } = require('../middlewares/error');
+const { generateUniqueCollegeCode } = require('../utils/collegeCode');
+
+// True when `code` already belongs to some other college. Collision callback
+// for generateUniqueCollegeCode.
+const yagIdExists = async (code) => {
+    const existing = await College.findOne({ where: { yagId: code } });
+    return Boolean(existing);
+};
 
 // Verify the caller-supplied orgId exists in lucy_devdb.organisations before
 // we INSERT. Without this we crash with a SequelizeForeignKeyConstraintError
@@ -44,7 +52,7 @@ const list = async ({ page = 1, per_page = 10, search = '' } = {}) => {
             limit,
             offset,
             order: [['clgName', 'ASC']],
-            attributes: ['clgId', 'clgName', 'clgAddress', 'orgId', 'branchIds', 'isActive', 'createdAt', 'updatedAt'],
+            attributes: ['clgId', 'yagId', 'clgName', 'clgAddress', 'orgId', 'branchIds', 'isActive', 'createdAt', 'updatedAt'],
         });
 
         // Batch counts live in the admin DB (batches.clg_id), so we tally
@@ -86,7 +94,7 @@ const list = async ({ page = 1, per_page = 10, search = '' } = {}) => {
 
 const get = async (clgId) => {
     const college = await College.findByPk(clgId, {
-        attributes: ['clgId', 'clgName', 'clgAddress', 'orgId', 'branchIds', 'isActive', 'createdAt', 'updatedAt'],
+        attributes: ['clgId', 'yagId', 'clgName', 'clgAddress', 'orgId', 'branchIds', 'isActive', 'createdAt', 'updatedAt'],
     });
     if (!college) throw new HttpError(404, 'College not found');
     return { college: college.toJSON() };
@@ -108,8 +116,12 @@ const create = async (body) => {
     const orgId = body.orgId ? String(body.orgId).trim() : null;
     if (orgId) await assertOrgExists(orgId);
 
+    // Deterministic immutable 4-char code, unique across the colleges table.
+    const yagId = await generateUniqueCollegeCode(clgId, yagIdExists);
+
     const data = {
         clgId,
+        yagId,
         clgName: String(body.clgName).trim(),
         clgAddress: body.clgAddress ? String(body.clgAddress).trim() : null,
         orgId,

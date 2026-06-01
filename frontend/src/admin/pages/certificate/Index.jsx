@@ -168,7 +168,7 @@ export default function CertificateIndex() {
                                 </p>
                                 {loading && <span className="text-[12px] text-gray">Refreshing…</span>}
                             </div>
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto e-table-scroll-y">
                                 <table className="e-table">
                                     <thead>
                                         <tr>

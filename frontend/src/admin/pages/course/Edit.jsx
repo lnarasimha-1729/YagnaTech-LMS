@@ -9,6 +9,7 @@ import InfoTab from './tabs/InfoTab';
 import MediaTab from './tabs/MediaTab';
 import SeoTab from './tabs/SeoTab';
 import DripTab from './tabs/DripTab';
+import RateTab from './tabs/RateTab';
 import CurriculumTab from './tabs/CurriculumTab';
 import LiveClassTab from './tabs/LiveClassTab'; // legacy — kept for reference, unused
 import CourseLiveClasses from '@/zoom-live-class/admin/CourseLiveClasses';
@@ -21,6 +22,7 @@ import {
     HiOutlinePhoto,
     HiOutlineDocumentPlus,
     HiOutlineAdjustmentsHorizontal,
+    HiOutlineStar,
 } from 'react-icons/hi2';
 
 const TABS = [
@@ -32,6 +34,7 @@ const TABS = [
     { key: 'media', label: 'Media', Icon: HiOutlinePhoto },
     { key: 'seo', label: 'SEO', Icon: HiOutlineDocumentPlus },
     { key: 'drip-content', label: 'Drip Content', Icon: HiOutlineAdjustmentsHorizontal },
+    { key: 'rate', label: 'Rate', Icon: HiOutlineStar },
 ];
 
 const PLAYER_BASE = '/courses/programs/course-details/play';
@@ -166,6 +169,7 @@ export default function CourseEdit() {
                             {tab === 'media' && <MediaTab course={course} onSave={onSave} formId={COURSE_FORM_ID} />}
                             {tab === 'seo' && <SeoTab course={course} onSave={onSave} formId={COURSE_FORM_ID} />}
                             {tab === 'drip-content' && <DripTab course={course} onSave={onSave} formId={COURSE_FORM_ID} />}
+                            {tab === 'rate' && <RateTab course={course} />}
                         </div>
                     </div>
                 </div>

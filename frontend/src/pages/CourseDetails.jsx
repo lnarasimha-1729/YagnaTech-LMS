@@ -633,11 +633,19 @@ function Reviews({ course, reviews, stars }) {
                     </div>
                 ) : reviews.map((r) => (
                     <div key={r.id} className="bg-white border border-border rounded-xl p-5 flex gap-4 hover:shadow-sm transition-shadow">
-                        <img
-                            src={r.user?.photo}
-                            alt=""
-                            className="w-12 h-12 rounded-full object-cover flex-shrink-0 ring-2 ring-bodybg"
-                        />
+                        {r.user?.photo ? (
+                            <img
+                                src={r.user.photo}
+                                alt=""
+                                className="w-12 h-12 rounded-full object-cover flex-shrink-0 ring-2 ring-bodybg"
+                            />
+                        ) : (
+                            // No avatar on file (student ratings don't carry a photo) —
+                            // show an initial chip instead of a broken image.
+                            <div className="w-12 h-12 rounded-full flex-shrink-0 ring-2 ring-bodybg bg-skin/10 text-skin flex items-center justify-center font-semibold uppercase">
+                                {(r.user?.name || 'S').charAt(0)}
+                            </div>
+                        )}
                         <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-3 mb-1.5 flex-wrap">
                                 <p className="font-semibold text-dark m-0">{r.user?.name || 'Anonymous'}</p>

@@ -128,7 +128,7 @@ export default function InstructorIndex() {
                             <p className="text-gray text-[14px] m-0 mb-3">
                                 Showing {rows.length} of {data.total} data
                             </p>
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto e-table-scroll-y">
                                 <table className="e-table">
                                     <thead>
                                         <tr>

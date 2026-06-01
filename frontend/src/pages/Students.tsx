@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import axios from "axios";
 import {
   Card,
   CardContent,
@@ -7,70 +9,50 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
-import { Clock, Award, GraduationCap, CheckCircle, Globe, Star, BookOpen, UserCheck } from "lucide-react";
+import { Award, GraduationCap, CheckCircle, Globe, Star, BookOpen } from "lucide-react";
+
+const ADMIN_BASE =
+  (import.meta.env.VITE_ADMIN_API_URL as string) || "http://localhost:4000";
+
+interface FeaturedProgram {
+  id: number;
+  title: string;
+  description: string;
+  features: string[];
+}
 
 const Students = () => {
-  const featuredCourses = [
-    {
-      id: 1,
-      title: "AI Frontier Program",
-      description:
-        "Kickstart your AI career with 6 months of structured learning in Python, neural networks, and deep learning. This program is designed to provide a strong foundation for beginners.",
-      eligibility: [
-        "Basic proficiency in Python programming required",
-        "Be a student of any partnered University / Institution",
-      ],
-      duration: "6 months (Virtual)",
-      icon: GraduationCap,
-      features: [
-        "Most comprehensive curriculum on AI & ML",
-        "Develop command on Python",
-        "Gain stronghold on Neural Networks & Deep Learning concepts",
-        "Learn with industry experts in live sessions",
-        "Hands-on Exercises with Real Datasets",
-        "Access to 20 LMS Modules anytime, anywhere",
-        "Mentor-guided projects",
-      ],
-    },
-    {
-      id: 2,
-      title: "AI Frontier Plus Program",
-      description:
-        "This program combines AI Frontier program with a 2-month corporate internship, preparing you for advanced roles in AI/ML",
-      eligibility: [
-        "Good proficiency in Python programming required",
-        "Be a student of any partnered University / Institution",
-      ],
-      duration: "6 Months (2 months on-site internship)",
-      icon: GraduationCap,
-      features: [
-        "All features of AI Frontier program",
-        "2 months of hands-on corporate experience and close mentorship",
-        "Personalized guidance with industry experts",
-        "Possibilities to showcase your skills and secure potential employment",
-      ],
-    },
-    {
-      id: 3,
-      title: "Elite AI Residency",
-      description:
-        "Immerse yourself in a full-time, 6-month residency at company premises, working on real AI projects from day one.",
-      eligibility: [
-        "Good proficiency in Python programming required",
-        "Be a student of any partnered University / Institution",
-      ],
-      duration: "6 months (On-site)",
-      icon: GraduationCap,
-      features: [
-        "All features of AI Frontier program",
-        "6 months on-site corporate engagement",
-        "Full time real project responsibilities",
-        "Work alongside corporate employees",
-        "Robust experience of AI/ML project in a fast paced environment",
-        "The top performers get assured employement",
-      ],
-    },
-  ];
+  // Featured Opportunities are the real active programs the admin created —
+  // the same college-agnostic /api/public/programs source the Home page uses,
+  // so "View More" on a Home program card lands here and shows the same set.
+  // Inactive programs (active unchecked at creation) never surface.
+  const [featuredCourses, setFeaturedCourses] = useState<FeaturedProgram[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await axios.get(`${ADMIN_BASE}/api/public/programs`, {
+          timeout: 30000,
+        });
+        if (cancelled) return;
+        const rows = Array.isArray(data?.programs) ? data.programs : [];
+        setFeaturedCourses(
+          rows.map((p: any) => ({
+            id: Number(p.id),
+            title: String(p.title || ""),
+            description: String(p.tagline || ""),
+            features: Array.isArray(p.features)
+              ? p.features.map((f: any) => String(f).trim()).filter(Boolean)
+              : [],
+          })),
+        );
+      } catch {
+        if (!cancelled) setFeaturedCourses([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <div className="overflow-hidden">
@@ -80,33 +62,9 @@ const Students = () => {
           <div className="max-w-4xl mx-auto text-center space-y-8">
             <div className="space-y-4">
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
-                {/* Transform Your Future with{" "} */}
                Our <span className="text-gradient"> Opportunities</span>
               </h1>
-              {/* <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
-                Explore our comprehensive library of professional development
-                opportunities, all designed to help you build the skills you
-                need for success.
-              </p> */}
             </div>
-
-            {/* <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button
-                size="lg"
-                className="bg-gradient-hero border-0 text-lg px-8"
-                asChild
-              >
-                <Link to="/signup">Start Learning Today</Link>
-              </Button>
-              <Button
-                variant="outline"
-                size="lg"
-                className="text-lg px-8"
-                asChild
-              >
-                <Link to="/contact">Need Guidance?</Link>
-              </Button>
-            </div> */}
           </div>
         </div>
       </section>
@@ -118,11 +76,13 @@ const Students = () => {
             <h2 className="text-3xl md:text-4xl font-bold">
               Featured <span className="text-gradient">Opportunities</span>
             </h2>
-            {/* <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Our most popular and impactful opportunities, designed to give you
-              practical skills for real-world success.
-            </p> */}
           </div>
+
+          {featuredCourses.length === 0 && (
+            <p className="text-center text-muted-foreground">
+              No opportunities available yet.
+            </p>
+          )}
 
           <div className="roadmapt grid md:grid-cols-2 lg:grid-cols-1 gap-8">
            {featuredCourses.map((course) => (
@@ -136,49 +96,21 @@ const Students = () => {
         {course.title}
       </CardTitle>
        <div className="w-44 h-2 mx-auto bg-gradient-hero rounded-full"></div>
-      {/* <CardDescription className="text-gray-600">
-        {course.subtitle}
-      </CardDescription> */}
     </CardHeader>
 
     <CardContent>
-      {/* Two-column layout like in the AI Frontier Program card */}
       <div className="grid md:grid-cols-2 gap-8">
-        {/* Left Column */}
+        {/* Left Column — Program Overview */}
         <div className="space-y-6">
-          {/* Program Overview */}
           <div>
             <h3 className="flex items-center text-lg font-semibold text-warm-green">
             <BookOpen className="w-5 h-5 mr-1 text-warm-green" />  Program Overview
             </h3>
             <p className="text-black mt-2">{course.description}</p>
           </div>
-
-          {/* Eligibility */}
-          <div>
-            <h3 className="flex items-center text-lg font-bold text-warm-green">
-           <UserCheck className="w-5 h-5 mr-1 text-warm-green" /> Pre-requisities
-            </h3>
-            <ul className="mt-2 space-y-1">
-              {course.eligibility.map((item, idx) => (
-                <li key={idx} className="flex items-center space-x-2 text-black">
-                   <CheckCircle className="w-4 h-4 min-w-[16px] min-h-[16px] text-warm-green flex-shrink-0" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Duration */}
-          <div>
-            <h3 className="flex items-center text-lg font-bold text-warm-green">
-              <Clock className="w-5 h-5 mr-1 text-warm-green" /> Duration
-            </h3>
-            <p className="text-black mt-2">{course.duration}</p>
-          </div>
         </div>
 
-        {/* Right Column */}
+        {/* Right Column — Key Features */}
         <div>
           <h3 className="flex items-center text-lg font-bold text-warm-green">
            <Star className="w-5 h-5 mr-1 text-warm-green" /> Key Features
@@ -197,12 +129,6 @@ const Students = () => {
         </div>
       </div>
 
-      {/* Buttons */}
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-6">
-        <Button className="bg-gradient-hero text-white px-6 py-3 rounded-full font-semibold hover:bg-blue-700 transition">
-          <Link to='/signup'>Enroll Now</Link>
-        </Button>
-      </div>
     </CardContent>
   </Card>
 ))}
@@ -221,10 +147,6 @@ const Students = () => {
               <span className="text-gradient">Launch Programs</span> vs{" "}
               <span className="text-gradient">Traditional Programs</span>
             </h2>
-            {/* <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              See how our industry-integrated approach outshines conventional
-              learning.
-            </p> */}
           </div>
 
           <div className="roadmapt grid md:grid-cols-2 lg:grid-cols-2 gap-8">

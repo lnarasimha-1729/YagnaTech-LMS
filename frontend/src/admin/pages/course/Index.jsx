@@ -294,7 +294,7 @@ export default function CourseIndex() {
                             </p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto e-table-scroll-y">
                             <table className="e-table">
                                 <thead>
                                     <tr>

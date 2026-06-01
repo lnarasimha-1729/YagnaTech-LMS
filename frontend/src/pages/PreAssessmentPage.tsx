@@ -3,12 +3,8 @@ import { Button } from "@/components/ui/button";
 import { ClipboardList, Clock, Award, AlertCircle } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { getAssessment } from "@/api/assessmentApi";
+import { getAssessment, getActivePreAssessment } from "@/api/assessmentApi";
 import { getProfile } from "@/api/authApi";
-
-// Hardcoded id of the pre-assessment record on the assessments table. Kept
-// in one place so the mount-time fetch and the Start handler stay in sync.
-const PRE_ASSESSMENT_ID = "A1";
 
 const PreAssessmentPage = () => {
   const navigate = useNavigate();
@@ -23,32 +19,48 @@ const PreAssessmentPage = () => {
     Boolean((location.state as { incompleteProfile?: boolean } | null)?.incompleteProfile)
   );
   const [starting, setStarting] = useState(false);
+  // The pre-assessment id is resolved at runtime (the `pre`-type assessment the
+  // admin created) rather than hardcoded, so this page always reflects whatever
+  // the admin configured even if its id isn't "A1". Null until resolved.
+  const [preAssessmentId, setPreAssessmentId] = useState<string | null>(null);
   // Question count + timer pulled from the assessments row so the welcome
   // card stays in sync with whatever the admin configured. Null while the
   // fetch is in flight — the UI shows "…" rather than a hardcoded number.
   const [questionCount, setQuestionCount] = useState<number | null>(null);
   const [timerMinutes, setTimerMinutes] = useState<number | null>(null);
 
+  // Resolve the pre-assessment after the profile has loaded so we can prefer
+  // the one scoped to the student's college. Runs once profileLoading flips
+  // false; collegeId may still be null (no college on file) — then we fall back
+  // to the first `pre` assessment.
   useEffect(() => {
+    if (profileLoading) return;
     let alive = true;
     (async () => {
       try {
-        const res = await getAssessment(PRE_ASSESSMENT_ID);
+        // Resolve the active pre-assessment via the student-readable endpoint
+        // (the admin-only /all listing 403s for students). The backend prefers
+        // an assessment scoped to the student's college, else the first `pre`,
+        // and returns its question count + timer (seconds) directly.
+        const res = await getActivePreAssessment(collegeId ?? undefined);
         if (!alive) return;
-        const data = res.data as { questions?: unknown[]; timer?: number };
-        setQuestionCount(Array.isArray(data.questions) ? data.questions.length : 0);
+        const data = res.data;
+        setPreAssessmentId(data.assessmentId);
+        setQuestionCount(Number(data.questionCount) || 0);
         // assessments.timer is stored in seconds — convert to whole minutes
         // for the welcome card. 0 stays 0 so a misconfigured row is visible.
         const secs = Number(data.timer) || 0;
         setTimerMinutes(Math.round(secs / 60));
       } catch {
+        // 404 (none configured) or any failure → no pre-assessment available.
         if (!alive) return;
+        setPreAssessmentId(null);
         setQuestionCount(0);
         setTimerMinutes(0);
       }
     })();
     return () => { alive = false; };
-  }, []);
+  }, [profileLoading, collegeId]);
 
   // Pull the student's profile once on mount so we know whether their college
   // has been filled in. Pre-assessment results are scoped to a college on the
@@ -77,10 +89,14 @@ const PreAssessmentPage = () => {
       setShowProfileGate(true);
       return;
     }
+    if (!preAssessmentId) {
+      alert("No pre-assessment has been set up yet. Please check back later.");
+      return;
+    }
     try {
       setStarting(true);
-      const res = await getAssessment(PRE_ASSESSMENT_ID);
-      navigate(`/preassessment/${PRE_ASSESSMENT_ID}`, {
+      const res = await getAssessment(preAssessmentId);
+      navigate(`/preassessment/${preAssessmentId}`, {
         state: { assessment: res.data },
       });
     } catch (error) {
@@ -171,10 +187,16 @@ const PreAssessmentPage = () => {
             <div className="flex justify-center pt-4">
               <Button
                 onClick={startAssessment}
-                disabled={profileLoading || starting}
+                disabled={profileLoading || starting || questionCount === null || !preAssessmentId}
                 className="px-8 py-3 text-lg rounded-xl bg-[#177385] text-white hover:bg-[#135f6e] transition-all shadow-md disabled:opacity-60"
               >
-                {profileLoading ? "Loading…" : starting ? "Starting…" : "Go To Assessment"}
+                {profileLoading || questionCount === null
+                  ? "Loading…"
+                  : !preAssessmentId
+                    ? "Not available"
+                    : starting
+                      ? "Starting…"
+                      : "Go To Assessment"}
               </Button>
             </div>
           </CardContent>

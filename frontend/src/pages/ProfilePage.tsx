@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { updateProfile, updateEducation, updateOrgClgBranch } from "@/api/authApi";
 import { getMyPreAssessmentRegistration } from "@/api/preAssessmentRegistrationApi";
@@ -19,8 +19,12 @@ import {
   BookOpen,
   Building2,
   GraduationCap,
-  Loader2
+  Loader2,
+  Search,
+  Check,
+  X
 } from "lucide-react";
+import type { College } from "@/context/CollegeContext";
 
 interface ProfileFormData {
   email: string;
@@ -192,6 +196,141 @@ function DobPicker({
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+// College picker driven by yagId. The student types their college's 4-char
+// public code; only colleges whose yagId matches the typed text are shown, and
+// selecting one stores its clgId (what the rest of the app keys on). When no
+// code is typed nothing is listed, and a non-matching code shows a clear
+// "no college found" message rather than the full list.
+function CollegeYagIdPicker({
+  colleges,
+  value,
+  onChange,
+  disabled,
+}: {
+  colleges: College[];
+  value: string; // selected clgId
+  onChange: (clgId: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [term, setTerm] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selected = colleges.find((c) => c.clgId === value) || null;
+
+  // Close on outside click / Escape.
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  // Match by the full yagId only, case-insensitive: the college surfaces once
+  // the entire 4-char code is entered and matches exactly. A partial code shows
+  // nothing yet. Trimmed so stray spaces don't break it.
+  const query = term.trim().toUpperCase();
+  const matches = query
+    ? colleges.filter((c) => (c.yagId || "").toUpperCase() === query)
+    : [];
+
+  const pick = (c: College) => {
+    onChange(c.clgId);
+    setTerm("");
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative" ref={containerRef}>
+      {selected && !open ? (
+        // Compact summary of the chosen college; click to change (when editing).
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => { if (!disabled) { setTerm(""); setOpen(true); } }}
+          className={cn(
+            "flex h-11 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm text-left",
+            "hover:border-[#177385]/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#177385]/40",
+            "disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-700"
+          )}
+        >
+          <span className="flex-1 truncate">
+            {selected.clgName}
+            {selected.yagId && (
+              <span className="ml-2 text-xs font-semibold text-[#177385]">
+                {selected.yagId}
+              </span>
+            )}
+          </span>
+          {!disabled && (
+            <X
+              className="h-4 w-4 shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={(e) => { e.stopPropagation(); onChange(""); }}
+            />
+          )}
+        </button>
+      ) : (
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={term}
+            disabled={disabled}
+            maxLength={4}
+            placeholder="Enter your college code (e.g. AB12)"
+            className="h-11 pl-9 uppercase placeholder:text-gray-400 placeholder:normal-case"
+            onChange={(e) => { setTerm(e.target.value); setOpen(true); }}
+            onFocus={() => setOpen(true)}
+          />
+        </div>
+      )}
+
+      {open && !disabled && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-white shadow-lg">
+          {matches.length > 0 ? (
+            <ul className="max-h-60 overflow-y-auto py-1 text-sm">
+              {matches.map((c) => (
+                <li key={c.clgId}>
+                  <button
+                    type="button"
+                    onClick={() => pick(c)}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-[#177385]/10"
+                  >
+                    <span className="flex-1 truncate">
+                      <span className="text-dark">{c.clgName}</span>
+                      <span className="ml-1 text-xs text-gray-500">({c.clgId})</span>
+                    </span>
+                    <span className="flex items-center gap-1 text-xs font-semibold text-[#177385]">
+                      {c.yagId}
+                      {c.clgId === value && <Check className="h-3.5 w-3.5" />}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-3 py-3 text-xs text-amber-700">
+              {query.length === 0
+                ? "Type your 4-character college code to find your college."
+                : query.length < 4
+                  ? "Keep typing your 4-character college code…"
+                  : "No college found for this code. Check it with your college admin."}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -542,7 +681,7 @@ const ProfilePage = () => {
                 onChange={e => handleInputChange('branch', e.target.value)}
                 disabled={!isEditing}
                 placeholder="Enter Branch / Stream"
-                className="w-full border rounded px-2 py-2"
+                className="w-full border rounded px-2 py-2 placeholder:text-gray-400"
               />
             </CardContent>
           </Card>
@@ -557,6 +696,7 @@ const ProfilePage = () => {
                 onChange={(e) => handleInputChange('yearOfStudy', e.target.value)}
                 disabled={!isEditing}
                 placeholder="Final Year"
+                className="placeholder:text-gray-400"
               />
             </CardContent>
           </Card>
@@ -566,30 +706,23 @@ const ProfilePage = () => {
               <Label className="flex items-center gap-2 text-gray-700">
                 <Building2 className="h-4 w-4 text-[#177385]" /> College / Organization
               </Label>
-              {/* Must be a select bound to clgId — the College Admin dashboard
-                  matches student.collegeId against admin.college_id, so a
-                  free-text college name would never aggregate correctly. */}
-              <select
+              {/* Bound to clgId — the College Admin dashboard matches
+                  student.collegeId against admin.college_id, so a free-text
+                  college name would never aggregate. Students find their
+                  college by entering its 4-char yagId code. */}
+              <CollegeYagIdPicker
+                colleges={colleges}
                 value={
                   // If the saved college no longer exists in the DB (admin
-                  // deleted it), don't render the orphan id — show the
-                  // "Select your college" placeholder so the user picks a
-                  // valid current option.
+                  // deleted it), don't render the orphan id so the user is
+                  // prompted to pick a valid current option.
                   formData.college && colleges.some((c) => c.clgId === formData.college)
                     ? formData.college
                     : ''
                 }
-                onChange={(e) => handleInputChange('college', e.target.value)}
+                onChange={(clgId) => handleInputChange('college', clgId)}
                 disabled={!isEditing}
-                className="w-full border rounded px-2 py-2 bg-white disabled:bg-gray-50 disabled:text-gray-700"
-              >
-                <option value="">Select your college</option>
-                {colleges.map((c) => (
-                  <option key={c.clgId} value={c.clgId}>
-                    {c.clgName} ({c.clgId})
-                  </option>
-                ))}
-              </select>
+              />
               {isEditing &&
                 formData.college &&
                 !colleges.some((c) => c.clgId === formData.college) && (
@@ -618,6 +751,7 @@ const ProfilePage = () => {
                 // truth — lock the field so the two records can't drift.
                 disabled={!isEditing || !!registeredProgram}
                 placeholder="Elite AI Residency"
+                className="placeholder:text-gray-400"
               />
               {registeredProgram && (
                 <p className="text-xs text-gray-500">

@@ -6,6 +6,14 @@ const College = sequelize.define("College", {
     type: DataTypes.STRING,
     primaryKey: true
   },
+  // Deterministic 4-char [A-Z0-9] code derived from clgId. Unique + indexed so
+  // it can serve as a public signup identifier. Immutable once set: generated
+  // on create and never updated thereafter.
+  yagId: {
+    type: DataTypes.CHAR(4),
+    allowNull: false,
+    unique: true
+  },
   accesskey: {
     type: DataTypes.STRING,
     allowNull: false,

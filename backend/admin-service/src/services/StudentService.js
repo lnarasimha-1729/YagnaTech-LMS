@@ -137,6 +137,56 @@ const list = async ({ page = 1, per_page = 10, search = '', college = '', batch 
                     acc[key].push({ id: e.course_id, title: e.title, slug: e.slug });
                     return acc;
                 }, {});
+
+                // Per-course completion for the "Course Status" column. We need
+                // two tallies: total lessons per course, and lessons each
+                // student has completed per course. A course is "Completed"
+                // when completed >= total (100%), mirroring the player's
+                // progress + certificate gate. Best-effort — failures leave
+                // progress at 0 rather than breaking the student list.
+                const courseIds = [...new Set(enrolled.map((e) => e.course_id))];
+                if (courseIds.length) {
+                    const totals = await sequelize.query(
+                        `SELECT course_id, COUNT(*) AS total
+                           FROM lessons
+                          WHERE course_id IN (:cids)
+                          GROUP BY course_id`,
+                        { replacements: { cids: courseIds }, type: QueryTypes.SELECT }
+                    );
+                    const totalByCourse = Object.fromEntries(
+                        totals.map((t) => [Number(t.course_id), Number(t.total) || 0])
+                    );
+
+                    const done = await sequelize.query(
+                        `SELECT user_id, course_id, COUNT(*) AS completed
+                           FROM lesson_completions
+                          WHERE user_id IN (:ids)
+                            AND course_id IN (:cids)
+                          GROUP BY user_id, course_id`,
+                        { replacements: { ids, cids: courseIds }, type: QueryTypes.SELECT }
+                    );
+                    const doneByKey = Object.fromEntries(
+                        done.map((d) => [`${d.user_id}:${Number(d.course_id)}`, Number(d.completed) || 0])
+                    );
+
+                    // Annotate each enrolled-course entry with lesson counts,
+                    // a completion percentage and a status label.
+                    Object.entries(enrolledByUser).forEach(([uid, courses]) => {
+                        courses.forEach((c) => {
+                            const total = totalByCourse[Number(c.id)] || 0;
+                            const completed = doneByKey[`${uid}:${Number(c.id)}`] || 0;
+                            const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+                            c.total_lessons = total;
+                            c.completed_lessons = completed;
+                            c.progress_pct = pct;
+                            c.status = total > 0 && completed >= total
+                                ? 'completed'
+                                : completed > 0
+                                    ? 'in_progress'
+                                    : 'not_started';
+                        });
+                    });
+                }
             } catch (err) {
                 console.warn('[students] enrolled courses lookup failed:', err.message);
             }

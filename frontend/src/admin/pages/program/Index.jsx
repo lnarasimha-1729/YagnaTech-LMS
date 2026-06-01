@@ -142,7 +142,7 @@ export default function ProgramIndex() {
 
             {!loading && !error && programs.length > 0 && (
                 <div className="ol-card rounded-ol-8">
-                    <div className="ol-card-body p-0 overflow-x-auto">
+                    <div className="ol-card-body p-0 overflow-x-auto e-table-scroll-y">
                         <table className="e-table w-full">
                             <thead>
                                 <tr>

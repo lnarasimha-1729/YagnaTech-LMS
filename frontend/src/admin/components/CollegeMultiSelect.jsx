@@ -65,14 +65,18 @@ export default function CollegeMultiSelect({
         return acc || new Set();
     }, [courseIds, coursesById, hasCourseScope]);
 
-    // Drop selections that fall out of scope when courseIds changes.
+    // Drop selections that fall out of scope when courseIds changes. Skip while
+    // the scoping courses are still loading (coursesById null) — otherwise an
+    // edit form's preselected clgIds would be wiped against an empty allowed set
+    // before the data arrives, losing the saved selection.
     useEffect(() => {
         if (!hasCourseScope || allowedClgIds == null) return;
+        if (coursesById == null) return; // courses still loading — keep selection
         if (value.length === 0) return;
         const next = value.filter((id) => allowedClgIds.has(String(id)));
         if (next.length !== value.length) onChange(next);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [allowedClgIds]);
+    }, [allowedClgIds, coursesById]);
 
     useEffect(() => {
         if (!open) return;

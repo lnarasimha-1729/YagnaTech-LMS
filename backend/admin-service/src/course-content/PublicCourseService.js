@@ -3,8 +3,9 @@ const sectionRepo = require('../repositories/SectionRepository');
 const lessonRepo = require('../repositories/LessonRepository');
 const questionRepo = require('../repositories/QuestionRepository');
 const quizSubmissionRepo = require('../repositories/QuizSubmissionRepository');
-const { User, Course, BatchMember, Lesson, LessonCompletion } = require('../models');
+const { User, Course, BatchMember, Lesson, LessonCompletion, UserProgress } = require('../models');
 const watchStore = require('./watchStore');
+const reviewService = require('./ReviewService');
 const { QueryTypes } = require('sequelize');
 const authDb = require('../config/authDatabase');
 const env = require('../config/env');
@@ -367,10 +368,31 @@ const detailsBySlug = async (slug, clgId = null) => {
     const lessons = await lessonRepo.findBySectionIds(sectionIds);
     const creator = await resolveInstructor(course);
 
-    return {
-        course: sanitizeCourse(course, sections, lessons, creator),
-        reviews: [],
-    };
+    // Real student ratings drive the Reviews section + the rating/count badge.
+    const { reviews, review_count, average_rating } = await reviewService.listForCourse(course.id);
+    const sanitized = sanitizeCourse(course, sections, lessons, creator);
+    sanitized.review_count = review_count;
+    sanitized.average_rating = average_rating;
+    sanitized.enrolled = await enrolledCount(course.id);
+
+    return { course: sanitized, reviews };
+};
+
+// Number of distinct students enrolled in a course. Enrollment lives in
+// user_progress (one row per user+program), so a student enrolled in the same
+// course via two programs still counts once via distinct user_id. Best-effort:
+// a query failure returns 0 rather than failing the whole course-details load.
+const enrolledCount = async (courseId) => {
+    try {
+        return await UserProgress.count({
+            where: { course_id: courseId, enrolled: true },
+            distinct: true,
+            col: 'user_id',
+        });
+    } catch (e) {
+        console.warn('[public/course] enrolledCount failed:', e.message);
+        return 0;
+    }
 };
 
 const detailsFirstActive = async () => {

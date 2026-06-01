@@ -6,6 +6,13 @@ const College = sequelize.define("College", {
     type: DataTypes.STRING,
     primaryKey: true
   },
+  // Read-only mirror of the deterministic 4-char code owned by college-service.
+  // payment-service does not create colleges, so it's never written here.
+  yagId: {
+    type: DataTypes.CHAR(4),
+    allowNull: false,
+    unique: true
+  },
   accesskey: {
     type: DataTypes.STRING,
     allowNull: false,

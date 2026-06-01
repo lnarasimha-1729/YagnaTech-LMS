@@ -237,6 +237,49 @@ app.get('/api/public/course/:slug', async (req, res) => {
     }
 });
 
+// ---- Course reviews (student-side) ----
+// Public + student-keyed via x-user-id, mirroring the certificate/player flow.
+const reviewService = require('./course-content/ReviewService');
+
+// The current student's own review for a course (by numeric course id), plus
+// whether they're eligible to submit one (course completed + not yet rated).
+// Drives the Rate tab's state in the player.
+app.get('/api/public/course/:courseId/my-review', async (req, res) => {
+    try {
+        const courseId = Number(req.params.courseId);
+        const userId = req.headers['x-user-id'] || req.query.user_id || '';
+        if (!courseId) return res.status(400).json({ error: 'Invalid course id' });
+        const review = await reviewService.getMyReview(courseId, userId);
+        const completed = userId ? await reviewService.hasCompletedCourse(courseId, userId) : false;
+        return res.json({ review, can_rate: completed && !review, completed });
+    } catch (e) {
+        console.warn('[public/my-review] failed:', e.message);
+        return res.status(500).json({ error: 'Failed to load your review' });
+    }
+});
+
+// Submit a one-time rating (1–5 stars + optional text). Enforces completion and
+// the single-rating-per-student rule in the service.
+app.post('/api/public/course/:courseId/review', express.json(), async (req, res) => {
+    try {
+        const courseId = Number(req.params.courseId);
+        const userId = req.headers['x-user-id'] || req.body.user_id || '';
+        if (!courseId) return res.status(400).json({ error: 'Invalid course id' });
+        const created = await reviewService.submit({
+            courseId,
+            userId,
+            userName: req.body.user_name,
+            rating: req.body.rating,
+            review: req.body.review,
+        });
+        return res.status(201).json({ review: created });
+    } catch (e) {
+        if (e && e.status) return res.status(e.status).json({ error: e.message });
+        console.warn('[public/review] failed:', e.message);
+        return res.status(500).json({ error: 'Failed to submit your review' });
+    }
+});
+
 app.get('/api/public/player/:slug', async (req, res, next) => {
     try {
         const userId = req.headers['x-user-id'] || req.query.user_id;
@@ -574,6 +617,17 @@ sequelize.authenticate()
             await Language.sync();
         } catch (e) {
             console.warn('[languages] table sync failed:', e.message);
+        }
+
+        // course_reviews: one student rating per (user_id, course_id). Created
+        // on startup so the student Rate tab can write and the course-details
+        // page can aggregate. sync() (no alter) just creates it when missing
+        // and is a no-op once it exists.
+        try {
+            const { CourseReview } = require('./models');
+            await CourseReview.sync();
+        } catch (e) {
+            console.warn('[course_reviews] table sync failed:', e.message);
         }
 
         // courses.has_certificate: per-course toggle for "this course grants

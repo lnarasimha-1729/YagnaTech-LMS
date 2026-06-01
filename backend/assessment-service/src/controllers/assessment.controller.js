@@ -108,6 +108,42 @@ export async function addAssessment(req, res) {
   }
 }
 
+// ------------------ GET ACTIVE PRE-ASSESSMENT (student-readable) ------------
+// Resolve the pre-assessment a student should see on the welcome page, without
+// requiring the admin-only /all listing. Prefers an assessment whose clgIds
+// includes the caller's college (?clgId=), else the first `pre`. Returns the
+// id + question count + timer so the welcome card shows real data; the full
+// question list is still fetched separately via GET /:id when starting.
+export async function getActivePreAssessment(req, res) {
+  try {
+    const clgId = typeof req.query.clgId === "string" ? req.query.clgId.trim() : "";
+
+    const pres = await Assessment.findAll({ where: { type: "pre" } });
+    if (!pres.length) return res.status(404).json({ message: "No pre-assessment configured" });
+
+    const matchesCollege = (a) =>
+      clgId &&
+      Array.isArray(a.clgIds) &&
+      a.clgIds.map(String).includes(String(clgId));
+
+    const pre = pres.find(matchesCollege) || pres[0];
+
+    const qs = await QuestionSet.findByPk(pre.setId);
+    const questionCount = qs && Array.isArray(qs.questions) ? qs.questions.length : 0;
+
+    return res.json({
+      assessmentId: pre.assessmentId,
+      type: pre.type,
+      timer: pre.timer,
+      status: pre.status,
+      questionCount,
+    });
+  } catch (err) {
+    console.error("Error fetching active pre-assessment:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+}
+
 // ------------------ GET ALL ------------------
 export async function getAllAssessments(req, res) {
   try {

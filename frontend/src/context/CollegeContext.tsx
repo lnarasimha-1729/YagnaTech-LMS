@@ -3,6 +3,8 @@ import { createContext } from "react";
 export interface College {
   clgId: string;
   clgName: string;
+  // Deterministic 4-char public code students enter to find their college.
+  yagId?: string;
   // add other college fields as needed
 }
 

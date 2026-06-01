@@ -145,12 +145,16 @@ export default function CourseMultiSelect({
             if (next.length !== pairs.length) onChange(next);
         } else {
             if (!legacyIds || legacyIds.size === 0) return;
+            // Don't prune while courses are still loading — an edit form's
+            // preselected courseIds would be wiped against an empty scope before
+            // the list arrives, losing the saved selection.
+            if (loading || courses.length === 0) return;
             const inScope = new Set(scoped.map((c) => String(c.id)));
             const next = [...legacyIds].filter((id) => inScope.has(id));
             if (next.length !== legacyIds.size) onChange(next);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [clgIds, courseById, scoped]);
+    }, [clgIds, courseById, scoped, loading]);
 
     const matchesSearch = (course) => {
         const q = search.trim().toLowerCase();

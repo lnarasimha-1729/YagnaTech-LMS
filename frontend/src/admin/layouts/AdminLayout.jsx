@@ -352,12 +352,12 @@ export default function AdminLayout() {
         }`;
 
     return (
-        <div className="admin-theme min-h-screen flex flex-col bg-bodybg">
+        <div className="admin-theme h-screen overflow-hidden flex flex-col bg-bodybg">
             <Navbar />
 
-            <div className="flex flex-1">
+            <div className="flex flex-1 min-h-0">
                 <aside className="w-[260px] bg-white border-r border-border shrink-0 flex flex-col">
-                    <div className="flex-1 overflow-y-auto px-3 pt-5 pb-8">
+                    <div className="flex-1 overflow-y-auto no-scrollbar px-3 pt-5 pb-8">
                         <nav className="flex flex-col gap-1">
                             {(() => {
                                 const renderItem = (item) => {
@@ -436,16 +436,16 @@ export default function AdminLayout() {
 
                     </div>
 
-                    <div className="px-3 py-4 border-t border-border">
+                    <div className="px-3 py-2 border-t border-border">
                         {adminUser?.email && (
-                            <div className="px-3 mb-2 text-[12px] text-gray truncate" title={adminUser.email}>
+                            <div className="px-3 mb-1 text-[12px] text-gray truncate" title={adminUser.email}>
                                 {adminUser.name || adminUser.email}
                             </div>
                         )}
                         <button
                             type="button"
                             onClick={handleLogout}
-                            className="w-full flex items-center gap-3 px-3 py-[10px] rounded-ol-8 text-[14px] text-gray hover:bg-lightgreen hover:text-skin transition-colors"
+                            className="w-full flex items-center gap-3 px-3 py-[6px] rounded-ol-8 text-[14px] text-gray hover:bg-lightgreen hover:text-skin transition-colors"
                         >
                             <span className="text-gray">{ICONS.logout}</span>
                             <span>Logout</span>
@@ -457,7 +457,7 @@ export default function AdminLayout() {
                     lets wide content (e.g. data tables) push <main> past the
                     viewport and scroll the whole page. min-w-0 lets it shrink
                     so a page's own overflow-x container scrolls instead. */}
-                <main className="flex-1 min-w-0 p-6">
+                <main className="flex-1 min-w-0 overflow-y-auto no-scrollbar p-6">
                     <Outlet />
                 </main>
             </div>

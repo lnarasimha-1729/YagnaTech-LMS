@@ -10,6 +10,13 @@ const College = authDb.define('College', {
         type: DataTypes.STRING,
         primaryKey: true,
     },
+    // Deterministic 4-char [A-Z0-9] code derived from clgId, shared with
+    // college-service. Generated on create; immutable thereafter.
+    yagId: {
+        type: DataTypes.CHAR(4),
+        allowNull: false,
+        unique: true,
+    },
     accesskey: {
         type: DataTypes.STRING,
         allowNull: false,

@@ -108,3 +108,40 @@ export const listMyCertificates = () =>
   api
     .get("/certificate/mine")
     .then((r) => r.data as { certificates: StudentCertificateWithCourse[] });
+
+// ---- Course reviews (student-side) ----
+
+export type CourseReview = {
+  id: number;
+  name: string;
+  rating: number;
+  review: string;
+  created_at?: string;
+};
+
+export type MyReviewState = {
+  // The student's own review for this course, or null if they haven't rated.
+  review: { id: number; rating: number; review: string } | null;
+  // True only when the course is completed AND not yet rated.
+  can_rate: boolean;
+  completed: boolean;
+};
+
+// Fetch the current student's rating state for a course (x-user-id header is set
+// by the request interceptor). Drives the player's Rate tab.
+export const getMyCourseReview = (courseId: number) =>
+  api
+    .get(`/course/${courseId}/my-review`)
+    .then((r) => r.data as MyReviewState);
+
+// Submit a one-time rating. The server rejects (403/409) if not completed or
+// already rated. userName is cached server-side for the Reviews list.
+export const submitCourseReview = (
+  courseId: number,
+  rating: number,
+  review: string,
+  userName?: string,
+) =>
+  api
+    .post(`/course/${courseId}/review`, { rating, review, user_name: userName })
+    .then((r) => r.data as { review: { id: number; rating: number; review: string } });

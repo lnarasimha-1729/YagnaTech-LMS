@@ -15,6 +15,7 @@ import {
 import ProgramCard from "@/components/programs/ProgramCard";
 import { getProfile } from "@/api/authApi";
 import { getCourseDetails } from "@/api/course/courseApi";
+import { enrollCourse } from "@/api/userProgressApi";
 import { getAcceptedProgram } from "@/api/programRequestApi";
 
 // Map the admin-stored icon name (e.g. "Globe2") to the actual lucide-react
@@ -212,16 +213,26 @@ const ProgramsForCourse = () => {
         [programs],
     );
 
-    // Enroll click → land on the course-details page with the accepted
-    // program id attached. CourseDetails's handleEnroll reads program_id
-    // from the URL and POSTs /user-progress/enroll-course, which flips the
-    // user_progress.enrolled flag (= the student's enrollment count). The
-    // student then sees "Go to Course" on the details page and lands in
-    // the player on click. Falls back to navigation without program_id
-    // when the accepted program can't be resolved (e.g. an unaccepted card
-    // shouldn't be clickable but the handler stays defensive).
-    const handleView = (programId?: number) => {
+    // Enroll click → record the enrollment NOW, then land on the course-details
+    // page with the program id attached. Writing /user-progress/enroll-course
+    // here (rather than only later on the details page) means the course's
+    // enrollment count increments the moment the student clicks Enroll on the
+    // program card. The write is idempotent — the backend upserts the single
+    // (user_id, program_id) row — so re-clicking doesn't double-count, and the
+    // distinct-user count on the course-details page stays accurate.
+    //
+    // The enroll write is best-effort: if it fails we still navigate (matching
+    // the prior behaviour) and CourseDetails's handleEnroll retries the same
+    // POST from the program_id in the URL.
+    const handleView = async (programId?: number) => {
         if (!course?.slug) return;
+        if (programId && course.id) {
+            try {
+                await enrollCourse(programId, course.id);
+            } catch {
+                /* non-fatal — navigation + the details-page enroll retry cover it */
+            }
+        }
         const params = new URLSearchParams({ slug: course.slug });
         if (programId) params.set('program_id', String(programId));
         navigate(`/courses/programs/course-details?${params.toString()}`);

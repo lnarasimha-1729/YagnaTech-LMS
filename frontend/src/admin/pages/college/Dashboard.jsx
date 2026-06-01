@@ -252,10 +252,12 @@ function CollegeStudentsTable({ collegeName }) {
                                     <th scope="col">#</th>
                                     <th scope="col">Name</th>
                                     <th scope="col">Phone</th>
-                                    <th scope="col">Program Interested</th>
                                     <th scope="col">Batch</th>
+                                    <th scope="col">Enrolled Courses</th>
+                                    <th scope="col">Program Interested</th>
                                     <th scope="col">Pre-Assessment</th>
                                     <th scope="col">Post-Assessment</th>
+                                    <th scope="col">Course Status</th>
                                     <th scope="col">Certificate Status</th>
                                     <th scope="col">Program Sent</th>
                                     <th scope="col">Request Status</th>
@@ -265,32 +267,41 @@ function CollegeStudentsTable({ collegeName }) {
                                 {rows.map((s, i) => (
                                     <tr key={s.id}>
                                         <td>{i + 1}</td>
-                                        <td className="min-w-[200px]">
-                                            <div className="flex items-center gap-2">
+                                        <td className="min-w-[220px]">
+                                            <div className="flex items-center gap-3">
                                                 <img
                                                     src={avatarUrl(s)}
-                                                    className="w-[45px] h-[45px] rounded-full object-cover"
+                                                    className="w-[42px] h-[42px] rounded-full object-cover shrink-0"
                                                     alt=""
                                                 />
-                                                <div>
-                                                    <h4 className="text-[14px] font-semibold text-dark m-0">{s.name}</h4>
-                                                    <p className="text-[12px] text-gray m-0">{s.email}</p>
+                                                <div className="min-w-0">
+                                                    <h4 className="text-[14px] font-semibold text-dark m-0 truncate" title={s.name}>
+                                                        {s.name || '—'}
+                                                    </h4>
+                                                    <p className="text-[12px] text-gray m-0 truncate" title={s.email}>
+                                                        {s.email}
+                                                    </p>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td><p className="m-0">{s.phone || '-'}</p></td>
+                                        <td className="min-w-[130px]">
+                                            {s.phone
+                                                ? <span className="text-[13px] text-dark whitespace-nowrap">{s.phone}</span>
+                                                : <span className="text-[12px] text-gray">—</span>}
+                                        </td>
+                                        <td className="min-w-[120px]">
+                                            {s.batch
+                                                ? <span className="text-[13px] text-dark">{s.batch}</span>
+                                                : <span className="text-[12px] text-gray">—</span>}
+                                        </td>
+                                        <td className="min-w-[180px]">
+                                            <EnrolledCoursesCell courses={s.enrolled_courses} />
+                                        </td>
                                         <td className="min-w-[160px]">
                                             {s.program_interested ? (
                                                 <span className="text-[13px]">{s.program_interested}</span>
                                             ) : (
                                                 <span className="text-[12px] text-gray">Not selected</span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            {s.batch ? (
-                                                <span className="text-[13px]">{s.batch}</span>
-                                            ) : (
-                                                <span className="text-[12px] text-gray">—</span>
                                             )}
                                         </td>
                                         <td className="min-w-[160px]">
@@ -329,6 +340,9 @@ function CollegeStudentsTable({ collegeName }) {
                                                 <span className="text-[12px] text-gray">Not taken</span>
                                             )}
                                         </td>
+                                        <td className="min-w-[200px]">
+                                            <CourseStatusCell courses={s.enrolled_courses} />
+                                        </td>
                                         <td className="min-w-[140px]">
                                             {s.certificate?.issued ? (
                                                 <span className="inline-block px-2 py-0.5 rounded text-[12px] font-semibold bg-green-100 text-green-700">
@@ -357,6 +371,59 @@ function CollegeStudentsTable({ collegeName }) {
                     </div>
                 )}
             </div>
+        </div>
+    );
+}
+
+// Compact chip list of the student's enrolled courses, capped so the cell
+// stays narrow. Mirrors the root-admin students table cell. `courses` is the
+// enrolled_courses array from listStudents ({ id, title }).
+function EnrolledCoursesCell({ courses }) {
+    const rows = Array.isArray(courses) ? courses : [];
+    if (rows.length === 0) {
+        return <span className="text-[12px] text-gray">None</span>;
+    }
+    const MAX = 2;
+    const visible = rows.slice(0, MAX);
+    const hidden = rows.slice(MAX);
+    return (
+        <div className="flex flex-wrap items-center gap-1">
+            {visible.map((c) => (
+                <span
+                    key={c.id}
+                    className="inline-flex items-center px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[11px] max-w-[160px] truncate"
+                    title={c.title}
+                >
+                    {c.title}
+                </span>
+            ))}
+            {hidden.length > 0 && (
+                <span
+                    className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-600 text-[11px]"
+                    title={hidden.map((c) => c.title).join(', ')}
+                >
+                    +{hidden.length}
+                </span>
+            )}
+        </div>
+    );
+}
+
+// Per-course completion for the Course Status column. Lists each enrolled
+// course with just its progress % (computed server-side from
+// lesson_completions vs total lessons). Mirrors the root-admin table cell.
+function CourseStatusCell({ courses }) {
+    const rows = Array.isArray(courses) ? courses : [];
+    if (rows.length === 0) {
+        return <span className="text-[12px] text-gray">No courses</span>;
+    }
+    return (
+        <div className="flex flex-wrap items-center gap-2">
+            {rows.map((c) => (
+                <span key={c.id} className="text-[13px] font-semibold text-skin">
+                    {Number(c.progress_pct) || 0}%
+                </span>
+            ))}
         </div>
     );
 }

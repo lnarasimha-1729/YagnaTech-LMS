@@ -73,6 +73,12 @@ import sequelize from './db/sequelize.js';
 import cookieParser from "cookie-parser";
 import collegeRoutes from './routes/college.routes.js';
 import branchRoutes from './routes/branch.routes.js';
+import {
+  dropLegacyCollegeCodeColumn,
+  addCollegeCodeColumnIfMissing,
+  enforceCollegeCodeConstraints,
+} from './db/ensureCollegeCodeColumn.js';
+import { backfillCollegeCodes } from './db/backfillCollegeCodes.js';
 
 import dotenv from 'dotenv';
 
@@ -104,8 +110,21 @@ app.use('/branch', branchRoutes);
 
 export async function initDb() {
   await sequelize.authenticate();
+
+  // yagId rollout (idempotent, safe on fresh or populated DBs):
+  //   0. Drop the legacy collegeCode column if an older DB still has it.
+  //   1. Add the column as NULLABLE before sync so existing rows survive and
+  //      sync() doesn't try to enforce NOT NULL on legacy NULLs.
+  //   2. sync() creates the table on a fresh DB / leaves an existing one.
+  //   3. Backfill deterministic codes for any rows still missing one.
+  //   4. Promote to NOT NULL + UNIQUE + index once every row has a value.
+  await dropLegacyCollegeCodeColumn();
+  await addCollegeCodeColumnIfMissing();
   await sequelize.sync();
-  console.log('🗄️  Database connected and synced---'); 
+  await backfillCollegeCodes();
+  await enforceCollegeCodeConstraints();
+
+  console.log('🗄️  Database connected and synced---');
 }
 
 export default app;
