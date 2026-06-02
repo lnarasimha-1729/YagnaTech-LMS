@@ -899,6 +899,23 @@ sequelize.authenticate()
         } catch (e) {
             console.warn('[live-classes] user_id column check failed:', e.message);
         }
+
+        // live_classes.recordings holds an optional recording link for a past
+        // session, shown to students in the course-player "Live class" table.
+        // Idempotently add the column on older schemas that predate it.
+        try {
+            const { QueryTypes } = require('sequelize');
+            const [col] = await sequelize.query(
+                "SHOW COLUMNS FROM live_classes WHERE Field = 'recordings'",
+                { type: QueryTypes.SELECT }
+            );
+            if (!col) {
+                await sequelize.query('ALTER TABLE live_classes ADD COLUMN recordings VARCHAR(1000) NULL');
+                console.log('🛠️  Added live_classes.recordings column');
+            }
+        } catch (e) {
+            console.warn('[live-classes] recordings column check failed:', e.message);
+        }
     })
     .then(start)
     .catch((err) => {

@@ -30,6 +30,7 @@ const ICONS = {
     chevron: <Icon className="ml-auto transition-transform" d={<path d="m6 9 6 6 6-6" />} />,
     external: <Icon className="w-[14px] h-[14px]" d={<><path d="M14 3h7v7" /><path d="M10 14 21 3" /><path d="M21 14v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h6" /></>} />,
     logout: <Icon d={<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="m16 17 5-5-5-5" /><path d="M21 12H9" /></>} />,
+    profile: <Icon d={<><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" /></>} />,
 };
 
 // `collegeOnly: true` items are visible ONLY to college admins (admin user
@@ -226,6 +227,7 @@ export default function AdminLayout() {
         p === '/admin/' ||
         p === '/admin/courses' ||
         p.startsWith('/admin/courses?') ||
+        p === '/admin/profile' ||
         /^\/admin\/course\/edit\/\d+/.test(p);
 
     useEffect(() => {
@@ -237,6 +239,9 @@ export default function AdminLayout() {
         }
         if (!isCollegeAdmin) return;
         if (pathname.startsWith('/admin/college')) return;
+        // Manage Profile is available to every admin role, so don't bounce a
+        // college admin off it back to their dashboard.
+        if (pathname === '/admin/profile') return;
         // Avoid redundant navigate() calls — only redirect when actually off-route.
         navigate('/admin/college', { replace: true });
     }, [isInstructor, isCollegeAdmin, pathname, navigate]);
@@ -442,6 +447,17 @@ export default function AdminLayout() {
                                 {adminUser.name || adminUser.email}
                             </div>
                         )}
+                        <NavLink
+                            to="/admin/profile"
+                            className={({ isActive }) =>
+                                `w-full flex items-center gap-3 px-3 py-[6px] rounded-ol-8 text-[14px] transition-colors ${
+                                    isActive ? 'bg-lightgreen text-skin' : 'text-gray hover:bg-lightgreen hover:text-skin'
+                                }`
+                            }
+                        >
+                            <span>{ICONS.profile}</span>
+                            <span>Manage Profile</span>
+                        </NavLink>
                         <button
                             type="button"
                             onClick={handleLogout}

@@ -17,6 +17,7 @@ export default function LiveClassForm({ course, liveClass, onDone }) {
     const [userId, setUserId] = useState(liveClass?.user_id || '');
     const [dateTime, setDateTime] = useState(formatLocal(liveClass?.class_date_and_time));
     const [note, setNote] = useState(liveClass?.note || '');
+    const [recordings, setRecordings] = useState(liveClass?.recordings || '');
     const [instructors, setInstructors] = useState([]);
     const [saving, setSaving] = useState(false);
 
@@ -31,7 +32,7 @@ export default function LiveClassForm({ course, liveClass, onDone }) {
         e.preventDefault();
         setSaving(true);
         try {
-            const body = { class_topic: topic, provider, user_id: userId, class_date_and_time: dateTime, note };
+            const body = { class_topic: topic, provider, user_id: userId, class_date_and_time: dateTime, note, recordings };
             if (editing) await updateLiveClass(liveClass.id, body);
             else await storeLiveClass(course.id, body);
             onDone();
@@ -68,6 +69,17 @@ export default function LiveClassForm({ course, liveClass, onDone }) {
             <div className="mb-3">
                 <label className="ol-form-label">Note</label>
                 <textarea className="ol-form-control" rows="3" value={note} onChange={(e) => setNote(e.target.value)} />
+            </div>
+            <div className="mb-3">
+                <label className="ol-form-label">Recording link</label>
+                <input
+                    type="url"
+                    className="ol-form-control"
+                    value={recordings}
+                    onChange={(e) => setRecordings(e.target.value)}
+                    placeholder="https://… (YouTube, Vimeo, Drive or video URL)"
+                />
+                <p className="text-[12px] text-gray mt-1">Optional. Students can watch this from the course player after the session.</p>
             </div>
             <div className="text-center">
                 <button className="ol-btn-primary w-full" disabled={saving}>{saving ? 'Saving…' : (editing ? 'Update live class' : 'Add live class')}</button>

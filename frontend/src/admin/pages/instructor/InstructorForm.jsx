@@ -22,6 +22,8 @@ export default function InstructorForm({ instructor, onSubmit, submitLabel = 'Sa
         email: instructor?.email || '',
         password: '',
         linkedinUrl: instructor?.linkedinUrl || '',
+        facebookUrl: instructor?.facebookUrl || '',
+        twitterUrl: instructor?.twitterUrl || '',
     });
     const [photo, setPhoto] = useState(null);
     const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
@@ -176,6 +178,28 @@ export default function InstructorForm({ instructor, onSubmit, submitLabel = 'Sa
                                         value={f.linkedinUrl}
                                         onChange={(e) => set('linkedinUrl', e.target.value)}
                                         placeholder="https://linkedin.com/in/..."
+                                    />
+                                </div>
+                            </div>
+                            <div className="mb-3 grid grid-cols-12 gap-0">
+                                <label className="col-span-2 ol-form-label">Facebook</label>
+                                <div className="col-span-10">
+                                    <input
+                                        className="ol-form-control"
+                                        value={f.facebookUrl}
+                                        onChange={(e) => set('facebookUrl', e.target.value)}
+                                        placeholder="https://facebook.com/..."
+                                    />
+                                </div>
+                            </div>
+                            <div className="mb-3 grid grid-cols-12 gap-0">
+                                <label className="col-span-2 ol-form-label">Twitter</label>
+                                <div className="col-span-10">
+                                    <input
+                                        className="ol-form-control"
+                                        value={f.twitterUrl}
+                                        onChange={(e) => set('twitterUrl', e.target.value)}
+                                        placeholder="https://twitter.com/..."
                                     />
                                 </div>
                             </div>

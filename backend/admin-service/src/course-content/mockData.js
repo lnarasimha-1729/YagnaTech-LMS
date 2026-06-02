@@ -349,11 +349,21 @@ const durationToSeconds = (raw) => {
     return parts[0] || 0;
 };
 
-// Mark progress at currentDuration (seconds). Mirrors the Laravel rule from
-// HomeController::update_watch_history_with_duration: a lesson is auto-completed
-// once watched seconds >= 30% of total duration. Drip-content courses use their
-// own admin-configured threshold; otherwise the 30% rule is the default.
-const markProgress = (courseId, lessonId, currentDuration, userId = 99) => {
+// Mark progress at currentDuration (seconds). A lesson auto-completes once the
+// admin-configured completion rule is met (minimum_duration or
+// minimum_percentage). This rule applies whether or not drip is enabled —
+// enabling drip only adds sequential *locking* on top (see getPlayerData). When
+// no rule is configured, the default is 30% of total duration (mirrors the
+// Laravel HomeController::update_watch_history_with_duration rule).
+// `realCtx` (optional) lets the caller pass the lesson/course values resolved
+// from the real DB instead of the in-memory mock arrays. Without it, a real
+// (admin-created) course would miss in `courses.find`/`lessons.find` and the
+// drip thresholds + true lesson duration would never be read — which is why
+// minimum-duration / percentage-watched appeared not to work. Shape:
+//   { totalSeconds, enableDrip: 0|1, drip: { lesson_completion_role,
+//     minimum_duration, minimum_percentage } }
+// (enableDrip is still accepted for back-compat but no longer consumed here.)
+const markProgress = (courseId, lessonId, currentDuration, userId = 99, realCtx = null) => {
     courseId = Number(courseId);
     lessonId = Number(lessonId);
     const seconds = Math.max(0, Math.floor(Number(currentDuration) || 0));
@@ -363,33 +373,40 @@ const markProgress = (courseId, lessonId, currentDuration, userId = 99) => {
 
     const lesson = lessons.find((l) => l.id === lessonId);
     const course = courses.find((c) => c.id === courseId);
-    const totalSeconds = lesson ? durationToSeconds(lesson.duration) : 0;
+    // Prefer real DB values when supplied; fall back to mock lookups.
+    const totalSeconds = realCtx
+        ? Number(realCtx.totalSeconds) || 0
+        : (lesson ? durationToSeconds(lesson.duration) : 0);
 
-    let isCompleted = 0;
-    if (course && Number(course.enable_drip_content) === 1) {
-        const drip = (() => {
+    // The admin-configured completion rule applies whether or not drip is
+    // enabled. Drip only adds sequential *locking* (handled in getPlayerData);
+    // the rule that decides when a lesson auto-completes is the same in both
+    // modes. So we always read drip_content_settings and evaluate the rule,
+    // falling back to the 30% default only when nothing is configured.
+    const drip = realCtx
+        ? (realCtx.drip || {})
+        : (() => {
             try {
-                return typeof course.drip_content_settings === 'string'
+                return typeof course?.drip_content_settings === 'string'
                     ? JSON.parse(course.drip_content_settings)
-                    : (course.drip_content_settings || {});
+                    : (course?.drip_content_settings || {});
             } catch { return {}; }
         })();
-        console.log('[markProgress] drip path | course', courseId, 'lesson', lessonId, '| drip =', drip, '| watched', watchedSeconds, '| total', totalSeconds);
-        if (drip.lesson_completion_role === 'duration') {
-            if (watchedSeconds >= Number(drip.minimum_duration || 0)) isCompleted = 1;
-            else if (totalSeconds > 0 && watchedSeconds + 4 >= totalSeconds) isCompleted = 1;
-        } else {
-            const required = (totalSeconds / 100) * Number(drip.minimum_percentage || 30);
-            if (watchedSeconds >= required) isCompleted = 1;
-            else if (totalSeconds > 0 && watchedSeconds + 4 >= totalSeconds) isCompleted = 1;
-        }
+
+    let isCompleted = 0;
+    if (drip.lesson_completion_role === 'duration' && Number(drip.minimum_duration) > 0) {
+        if (watchedSeconds >= Number(drip.minimum_duration)) isCompleted = 1;
+        else if (totalSeconds > 0 && watchedSeconds + 4 >= totalSeconds) isCompleted = 1;
+    } else if (drip.lesson_completion_role === 'percentage' && Number(drip.minimum_percentage) > 0) {
+        const required = (totalSeconds / 100) * Number(drip.minimum_percentage);
+        if (totalSeconds > 0 && watchedSeconds >= required) isCompleted = 1;
+        else if (totalSeconds > 0 && watchedSeconds + 4 >= totalSeconds) isCompleted = 1;
     } else {
-        // Default rule (no drip): 30% of duration. If the lesson has no
-        // duration in the DB ("00:00:00"), the 30% rule can't fire — so fall
-        // back to a minimum-watched-seconds threshold so the lesson can still
-        // auto-complete. Mirrors the duration-rule semantics for drip courses.
+        // No rule configured: 30% of duration. If the lesson has no duration in
+        // the DB ("00:00:00"), the 30% rule can't fire — so fall back to a
+        // minimum-watched-seconds threshold so the lesson can still
+        // auto-complete. Mirrors the duration-rule semantics above.
         const FALLBACK_MIN_SECONDS = 30;
-        console.log('[markProgress] non-drip path | course', courseId, 'lesson', lessonId, '| enable_drip =', course?.enable_drip_content, '| watched', watchedSeconds, '| total', totalSeconds);
         if (totalSeconds > 0) {
             if (watchedSeconds >= totalSeconds * 0.30) isCompleted = 1;
         } else if (watchedSeconds >= FALLBACK_MIN_SECONDS) {

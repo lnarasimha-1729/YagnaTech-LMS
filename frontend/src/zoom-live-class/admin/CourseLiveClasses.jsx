@@ -5,7 +5,7 @@ import { BsThreeDotsVertical } from 'react-icons/bs';
 import Modal from '@/admin/components/Modal';
 import ConfirmDialog from '@/admin/components/ConfirmDialog';
 import { API_BASE } from '@/admin/api/client';
-import { listLiveClasses, deleteLiveClass, resolveJoin, syncStatus } from './liveClassApi';
+import { listLiveClasses, deleteLiveClass, resolveJoin, syncStatus, updateLiveClass } from './liveClassApi';
 import CourseLiveClassForm from './CourseLiveClassForm';
 
 /**
@@ -241,6 +241,80 @@ const ActionsMenu = ({ liveClass, completed, joining, onStart, onEdit, onDelete 
     );
 };
 
+// Inline "Upload recording" modal body. Attaches a recording URL to an existing
+// live class WITHOUT opening the full edit form. updateLiveClass requires the
+// class's existing required fields (topic / instructor / schedule), so we resend
+// them unchanged alongside the new recordings URL. URL is optional-but-validated
+// the same way the backend validator checks it (http/https only).
+const isHttpUrl = (v) => {
+    try {
+        const u = new URL(String(v).trim());
+        return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch {
+        return false;
+    }
+};
+
+const RecordingForm = ({ liveClass, onDone, onCancel }) => {
+    const [url, setUrl] = useState(liveClass?.recordings || '');
+    const [saving, setSaving] = useState(false);
+
+    const submit = async (e) => {
+        e.preventDefault();
+        if (saving) return;
+        const link = url.trim();
+        if (link && !isHttpUrl(link)) {
+            toast.error('Enter a valid recording link (https://…)');
+            return;
+        }
+        setSaving(true);
+        try {
+            await updateLiveClass(liveClass.id, {
+                class_topic: liveClass.class_topic,
+                user_id: liveClass.user_id || liveClass.host?.id,
+                class_date_and_time: liveClass.class_date_and_time,
+                note: liveClass.note || '',
+                recordings: link,
+            });
+            onDone();
+        } catch (err) {
+            toast.error(err.response?.data?.error || 'Failed to save recording');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <form onSubmit={submit}>
+            <div className="mb-3">
+                <label className="ol-form-label">Recording link</label>
+                <input
+                    type="url"
+                    className="ol-form-control"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="https://… (YouTube, Vimeo, Drive or video URL)"
+                    autoFocus
+                />
+                <p className="text-[12px] text-gray mt-1">
+                    Paste a recording URL. Students can watch it from the course player after the session.
+                    {liveClass?.recordings && ' Leave empty and save to remove the current recording.'}
+                </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-3 border-t border-border">
+                {onCancel && (
+                    <button type="button" className="ol-btn-outline-secondary" onClick={onCancel} disabled={saving}>
+                        Cancel
+                    </button>
+                )}
+                <button type="submit" className="ol-btn-primary" disabled={saving}>
+                    {saving ? 'Saving…' : 'Save recording'}
+                </button>
+            </div>
+        </form>
+    );
+};
+
 export default function CourseLiveClasses({ course }) {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -363,6 +437,7 @@ export default function CourseLiveClasses({ course }) {
                                 <th className="text-left py-3 px-4 font-semibold">Class topic</th>
                                 <th className="text-left py-3 px-4 font-semibold">Class schedule</th>
                                 <th className="text-left py-3 px-4 font-semibold">Status</th>
+                                <th className="text-left py-3 px-4 font-semibold">Recordings</th>
                                 <th className="text-right py-3 px-4 font-semibold">Action</th>
                             </tr>
                         </thead>
@@ -387,6 +462,36 @@ export default function CourseLiveClasses({ course }) {
                                         </td>
                                         <td className="py-3 px-4">
                                             <StatusBadge status={c.status} />
+                                        </td>
+                                        <td className="py-3 px-4">
+                                            {c.recordings ? (
+                                                <div className="flex items-center gap-3">
+                                                    <a
+                                                        href={c.recordings}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex items-center gap-1 text-skin hover:underline"
+                                                        title="Watch recording"
+                                                    >
+                                                        <span className="fi-rr-play" /> Recording
+                                                    </a>
+                                                    <button
+                                                        type="button"
+                                                        className="text-[12px] text-gray hover:text-skin"
+                                                        onClick={() => setModal({ type: 'recording', liveClass: c })}
+                                                    >
+                                                        Replace
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    className="ol-btn-outline-secondary ol-btn-sm inline-flex items-center gap-1"
+                                                    onClick={() => setModal({ type: 'recording', liveClass: c })}
+                                                >
+                                                    <span className="fi-rr-upload" /> Upload recording
+                                                </button>
+                                            )}
                                         </td>
                                         <td className="py-3 px-4">
                                             <div className="flex items-center justify-end">
@@ -429,6 +534,22 @@ export default function CourseLiveClasses({ course }) {
                         onCancel={() => setModal(null)}
                         onDone={() => {
                             toast.success('Live class updated successfully');
+                            setModal(null);
+                            load();
+                        }}
+                    />
+                </Modal>
+            )}
+            {modal?.type === 'recording' && (
+                <Modal
+                    title={modal.liveClass.recordings ? 'Replace recording' : 'Upload recording'}
+                    onClose={() => setModal(null)}
+                >
+                    <RecordingForm
+                        liveClass={modal.liveClass}
+                        onCancel={() => setModal(null)}
+                        onDone={() => {
+                            toast.success('Recording saved successfully');
                             setModal(null);
                             load();
                         }}

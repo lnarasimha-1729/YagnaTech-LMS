@@ -8,7 +8,7 @@ const lessonRepo = require('../repositories/LessonRepository');
 const seoRepo = require('../repositories/SeoFieldRepository');
 const questionRepo = require('../repositories/QuestionRepository');
 const submissionRepo = require('../repositories/QuizSubmissionRepository');
-const { Lesson, Section, User, Category, UserProgress, BatchMember } = require('../models');
+const { Lesson, Section, User, Category, UserProgress, BatchMember, LessonCompletion, LessonWatchProgress } = require('../models');
 const slugify = require('../helpers/slugify');
 const { upload, removeFile, niceFileName } = require('../helpers/fileUploader');
 const mailer = require('../helpers/mailer');
@@ -613,11 +613,14 @@ const update = async ({ id, body, files = {} }) => {
         if (seo) await seo.update(seoData);
         else await seoRepo.create(seoData);
     } else if (b.tab === 'drip-content') {
-        data.enable_drip_content = b.enable_drip_content;
-        const [h, m, s] = String(b.minimum_duration || '00:00:00').split(':').map(Number);
+        // Coerce the form's '1'/'0' string to a real boolean — '0' is a truthy
+        // string in JS, so assigning it raw could enable drip when it shouldn't.
+        data.enable_drip_content = String(b.enable_drip_content) === '1';
+        // minimum_duration now arrives as a plain number of seconds from the
+        // form (previously HH:MM:SS, which made "10" parse to 10 hours).
         data.drip_content_settings = JSON.stringify({
             lesson_completion_role: b.lesson_completion_role,
-            minimum_duration: h * 3600 + m * 60 + s,
+            minimum_duration: Math.max(0, Math.floor(Number(b.minimum_duration) || 0)),
             minimum_percentage: b.minimum_percentage,
             locked_lesson_message: b.locked_lesson_message,
         });
@@ -649,6 +652,15 @@ const remove = async (id) => {
             await questionRepo.destroyByQuiz(lesson.id);
             await submissionRepo.destroyByQuiz(lesson.id);
         }
+        // Student-progress rows FK to lessons with NO ACTION (no DB cascade),
+        // so remove them before destroy() or it trips ER_ROW_IS_REFERENCED_2
+        // once anyone has watched/completed the lesson.
+        await LessonCompletion.destroy({ where: { lesson_id: lesson.id } });
+        await LessonWatchProgress.destroy({ where: { lesson_id: lesson.id } });
+        await UserProgress.update(
+            { last_lesson_id: null },
+            { where: { last_lesson_id: lesson.id } },
+        );
         await lesson.destroy();
     }
 

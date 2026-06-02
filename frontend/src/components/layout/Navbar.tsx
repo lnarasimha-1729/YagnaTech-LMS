@@ -40,6 +40,13 @@ const Navbar = () => {
   const isActive = (path) => location.pathname === path;
 
   const dashboardPath = user?.role === "admin" ? "/admin/dashboard" : "/dashboard";
+
+  // Instructors have no dashboard surface — only the courses they manage. For
+  // them the top-right menu shows "Profile" pointing to the Manage Profile
+  // page. Every other role keeps the Dashboard item unchanged.
+  const isInstructor = user?.role === "instructor";
+  const accountLabel = isInstructor ? "Profile" : "Dashboard";
+  const accountPath = isInstructor ? "/admin/profile" : dashboardPath;
   const initials = (user?.name || user?.email || "U")
     .split(/\s+/)
     .map((s) => s[0])
@@ -209,15 +216,15 @@ const Navbar = () => {
                   </div>
                   <DropdownMenuItem asChild>
                     <Link
-                      to={dashboardPath}
+                      to={accountPath}
                       onClick={(e) => {
-                        scrollToTopWithOffset(e, dashboardPath);
+                        scrollToTopWithOffset(e, accountPath);
                         setIsProfileOpen(false);
                       }}
                       className="flex items-center gap-2"
                     >
                       <LayoutDashboard className="w-4 h-4" />
-                      <span>Dashboard</span>
+                      <span>{accountLabel}</span>
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem
@@ -317,12 +324,12 @@ const Navbar = () => {
                       asChild
                     >
                       <Link
-                        to={dashboardPath}
-                        onClick={(e) => scrollToTopWithOffset(e, dashboardPath)}
+                        to={accountPath}
+                        onClick={(e) => scrollToTopWithOffset(e, accountPath)}
                         className="flex items-center space-x-3"
                       >
                         <LayoutDashboard className="w-5 h-5" />
-                        <span>Dashboard</span>
+                        <span>{accountLabel}</span>
                       </Link>
                     </Button>
                     <Button

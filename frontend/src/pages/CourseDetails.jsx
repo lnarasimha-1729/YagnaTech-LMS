@@ -507,12 +507,12 @@ function Instructor({ instructor }) {
         );
     }
 
-    // `expertise` powers both the tagline under the name AND the chip strip.
-    // Render chips only when the admin entered something comma-separated, so
-    // a plain tagline like "AI educator" doesn't get repeated as a single
-    // chip below the same line. Falls back to `skills` for legacy rows.
+    // "Area of Expertise" (the expertise column, exposed as skills/about).
+    // Shown only as chips below the bio. Split on commas for multiple values;
+    // a single value renders as one chip. Falls back to `skills` for legacy
+    // rows.
     const expertiseRaw = (instructor.skills || instructor.about || '').trim();
-    const expertiseChips = expertiseRaw.includes(',')
+    const expertiseChips = expertiseRaw
         ? expertiseRaw.split(',').map((s) => s.trim()).filter(Boolean)
         : [];
 
@@ -530,11 +530,8 @@ function Instructor({ instructor }) {
                     />
                     <div className="text-center sm:text-left flex-1 min-w-0">
                         <h3 className="text-[22px] font-bold text-dark m-0">{instructor.name}</h3>
-                        {instructor.about && (
-                            <p className="text-[14px] text-skin font-medium mt-1 m-0">
-                                {instructor.about}
-                            </p>
-                        )}
+                        {/* Expertise is shown once, as chips below the bio — not
+                            repeated here as a tagline. */}
                         <div className="mt-3 flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1.5 text-[12px] text-muted">
                             {instructor.email && (
                                 <a
@@ -554,6 +551,28 @@ function Instructor({ instructor }) {
                                 >
                                     <i className="fab fa-linkedin" />
                                     LinkedIn
+                                </a>
+                            )}
+                            {instructor.facebookUrl && (
+                                <a
+                                    href={instructor.facebookUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 hover:text-skin transition-colors"
+                                >
+                                    <i className="fab fa-facebook" />
+                                    Facebook
+                                </a>
+                            )}
+                            {instructor.twitterUrl && (
+                                <a
+                                    href={instructor.twitterUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 hover:text-skin transition-colors"
+                                >
+                                    <i className="fab fa-twitter" />
+                                    Twitter
                                 </a>
                             )}
                         </div>

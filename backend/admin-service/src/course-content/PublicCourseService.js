@@ -80,7 +80,8 @@ const fetchAuthUser = async (userId) => {
     try {
         const rows = await authDb.query(
             `SELECT u.userId AS id, u.name, u.email,
-                    u.expertise, u.bio, u.linkedinUrl, u.instructorPhoto
+                    u.expertise, u.bio, u.linkedinUrl,
+                    u.facebookUrl, u.twitterUrl, u.instructorPhoto
                FROM users u
               WHERE u.userId = :id
               LIMIT 1`,
@@ -100,6 +101,8 @@ const fetchAuthUser = async (userId) => {
             biography: u.bio || '',
             skills: u.expertise || '',
             linkedinUrl: u.linkedinUrl || '',
+            facebookUrl: u.facebookUrl || '',
+            twitterUrl: u.twitterUrl || '',
         };
     } catch (err) {
         console.warn('[course] auth user lookup failed:', err.message);
@@ -147,6 +150,9 @@ const resolveInstructor = async (course) => {
                 about: creator.about || '',
                 biography: creator.biography || '',
                 skills: creator.skills || '',
+                linkedinUrl: creator.linkedin || '',
+                facebookUrl: creator.facebook || '',
+                twitterUrl: creator.twitter || '',
             };
         }
     }

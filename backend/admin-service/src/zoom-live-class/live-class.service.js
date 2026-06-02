@@ -143,6 +143,9 @@ const serialize = (row, hostsById = {}, { includeStartUrl = false } = {}) => {
         provider: data.provider,
         class_date_and_time: data.class_date_and_time,
         note: data.note,
+        // Optional recording link, surfaced to the course-player "Live class"
+        // table as a separate "Recording" column.
+        recordings: data.recordings || null,
         created_at: data.created_at,
         updated_at: data.updated_at,
         host: host ? { id: host.id, name: host.name, email: host.email, photo: host.photo } : null,
@@ -188,6 +191,7 @@ const create = async ({ courseId, body, user }) => {
         provider,
         class_date_and_time: new Date(body.class_date_and_time),
         note: body.note || null,
+        recordings: body.recordings || null,
     };
 
     if (provider === 'zoom') {
@@ -233,6 +237,12 @@ const update = async ({ id, body, user }) => {
         class_date_and_time: new Date(body.class_date_and_time),
         note: body.note || null,
     };
+    // Only touch the recording when the caller actually sent the field. The
+    // inline "Upload recording" action sends it; the edit-class form omits it,
+    // and must not wipe a previously-saved recording. Empty string clears it.
+    if (body.recordings !== undefined) {
+        next.recordings = body.recordings ? String(body.recordings).trim() : null;
+    }
 
     if (row.provider === 'zoom') {
         const previous = parseAdditionalInfo(row.additional_info);

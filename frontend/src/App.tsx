@@ -62,6 +62,7 @@ import AdminStudentEdit from "./admin/pages/student/Edit";
 import AdminInstructorIndex from "./admin/pages/instructor/Index";
 import AdminInstructorCreate from "./admin/pages/instructor/Create";
 import AdminInstructorEdit from "./admin/pages/instructor/Edit";
+import AdminManageProfile from "./admin/pages/profile/Index";
 import AdminListIndex from "./admin/pages/admin/Index";
 import AdminCreate from "./admin/pages/admin/Create";
 import AdminEditPage from "./admin/pages/admin/Edit";
@@ -140,6 +141,7 @@ const App = () => (
             >
               <Route index element={<AdminDash />} />
               <Route path="dashboard" element={<AdminDash />} />
+              <Route path="profile" element={<AdminManageProfile />} />
               <Route path="college" element={<AdminCollegeDashboard />} />
               <Route path="categories" element={<AdminCategoryIndex />} />
               <Route path="courses" element={<AdminCourseIndex />} />

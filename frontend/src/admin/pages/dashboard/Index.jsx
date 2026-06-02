@@ -1,21 +1,57 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import {
+    BsMortarboard, BsListCheck, BsJournalText, BsPeople,
+    BsPersonBadge, BsChevronRight,
+} from 'react-icons/bs';
 import { dashboardStats } from '../../api/admin';
 
-const StatCard = ({ count, label }) => (
-    <div className="ol-card card-hover">
-        <div className="ol-card-body px-5 py-3">
-            <p className="text-[18px] text-dark font-semibold my-2">{count}</p>
-            <p className="text-[14px] text-gray">{label}</p>
-        </div>
-    </div>
+// Stat tile: React-icon chip + big number + label, with a tinted accent picked
+// from the admin palette (skin/success/danger/gray). `to` makes the whole card
+// a link to the matching management page. Tones use lightgreen/softgreen and
+// the theme accents so nothing leaves the established green palette.
+const StatCard = ({ icon: Icon, count, label, accent, to }) => {
+    const Wrapper = to ? Link : 'div';
+    return (
+        <Wrapper to={to} className="ol-card card-hover block overflow-hidden">
+            <div className="ol-card-body px-5 py-4 flex items-center gap-4">
+                <span
+                    className="w-12 h-12 rounded-ol-12 flex items-center justify-center text-[22px] shrink-0"
+                    style={{ backgroundColor: accent.bg, color: accent.fg }}
+                >
+                    <Icon />
+                </span>
+                <div className="min-w-0">
+                    <p className="text-[22px] leading-none text-dark font-bold mb-1">{count}</p>
+                    <p className="text-[13px] text-gray truncate">{label}</p>
+                </div>
+            </div>
+        </Wrapper>
+    );
+};
+
+const StatusLegend = ({ label, count, pct, color }) => (
+    <li className="flex items-center gap-2.5 py-1">
+        <span className="inline-block w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+        <span className="text-[13px] text-dark flex-1">{label}</span>
+        <span className="text-[13px] text-gray font-medium tabular-nums">{count}</span>
+        <span className="text-[12px] text-gray/70 tabular-nums w-10 text-right">{pct}%</span>
+    </li>
 );
 
-const StatusLegend = ({ label, color }) => (
-    <li className="flex items-center gap-2 mb-1">
-        <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: color }}></span>
-        <span className="text-[14px] text-dark">{label}</span>
-    </li>
+// Quick links to the pages an admin reaches most. In-palette: lightgreen hover,
+// skin accents — mirrors the side-nav-link styling.
+const QuickAction = ({ icon: Icon, label, to }) => (
+    <Link
+        to={to}
+        className="flex items-center gap-3 px-4 py-3 rounded-ol-8 border border-ebordermuted hover:border-skin hover:bg-lightgreen transition-colors group"
+    >
+        <span className="w-9 h-9 rounded-ol-8 bg-lightgreen text-skin flex items-center justify-center text-[16px] group-hover:bg-white">
+            <Icon />
+        </span>
+        <span className="text-[14px] font-medium text-dark group-hover:text-skin">{label}</span>
+        <BsChevronRight className="ml-auto text-gray group-hover:text-skin" />
+    </Link>
 );
 
 export default function Dashboard() {
@@ -64,55 +100,104 @@ export default function Dashboard() {
     }
 
     const { stats = {}, status_counts = {} } = data;
+
+    // Each card draws from the palette: skin green, success, danger, and a
+    // neutral gray — tinted background (light) + solid foreground (accent bar
+    // and icon).
+    // All icon chips share the first card's green palette tone (lightgreen bg,
+    // skin-green icon) for a consistent look across the stat row.
+    const accent = { bg: '#f4fef7', fg: '#169f48' };
+    const cards = [
+        { icon: BsMortarboard, label: 'Courses', count: stats.course_count || 0, to: '/admin/courses', accent },
+        { icon: BsListCheck, label: 'Lessons', count: stats.lesson_count || 0, to: '/admin/courses', accent },
+        { icon: BsJournalText, label: 'Enrollments', count: stats.enrollment_count || 0, to: '/admin/students', accent },
+        { icon: BsPeople, label: 'Students', count: stats.student_count || 0, to: '/admin/students', accent },
+    ];
+
     const statusItems = [
         { key: 'active', label: 'Active', color: '#12c093' },
         { key: 'upcoming', label: 'Upcoming', color: '#169f48' },
         { key: 'pending', label: 'Pending', color: '#ff2583' },
-        { key: 'private', label: 'Private', color: '#000000' },
+        { key: 'private', label: 'Private', color: '#0a1017' },
         { key: 'draft', label: 'Draft', color: '#878d97' },
         { key: 'inactive', label: 'Inactive', color: '#dadada' },
     ];
-    const totalStatus = statusItems.reduce((s, i) => s + (status_counts[i.key] || 0), 0) || 1;
+    const totalStatus = statusItems.reduce((s, i) => s + (status_counts[i.key] || 0), 0);
+    const denom = totalStatus || 1;
+    const pctOf = (n) => Math.round((n / denom) * 100);
 
     return (
-        <div>
-            <div className="ol-card">
-                <div className="ol-card-body px-5 my-3 py-4">
-                    <div className="flex items-center justify-between flex-wrap gap-3">
-                        <h4 className="text-[16px] font-semibold text-dark">Dashboard</h4>
-                    </div>
+        <div className="space-y-3">
+            {/* Welcome band — plain white, with the page title. */}
+            <div className="ol-card overflow-hidden">
+                <div className="px-5 sm:px-6 py-5">
+                    <h4 className="text-[18px] font-bold text-dark m-0">Dashboard</h4>
+                    <p className="text-[13px] text-gray mt-1 m-0">
+                        Overview of your courses, students and enrollments.
+                    </p>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 my-3 items-stretch">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                    <StatCard count={stats.course_count || 0} label="Number of Courses" />
-                    <StatCard count={stats.lesson_count || 0} label="Number of Lessons" />
-                    <StatCard count={stats.enrollment_count || 0} label="Number of Enrollment" />
-                    <StatCard count={stats.student_count || 0} label="Number of Students" />
-                </div>
+            {/* Stat cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                {cards.map((c) => (
+                    <StatCard key={c.label} {...c} />
+                ))}
+            </div>
 
-                <div className="ol-card h-full">
-                    <div className="ol-card-body p-3">
-                        <div className="flex items-center justify-between mb-3">
-                            <h4 className="text-[14px] font-semibold text-dark">Course Status</h4>
-                            <Link to="/admin/courses" className="text-skin text-[12px]">Explore</Link>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-stretch">
+                {/* Course Status donut */}
+                <div className="ol-card h-full lg:col-span-2">
+                    <div className="ol-card-body p-5">
+                        <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-[15px] font-semibold text-dark m-0">Course Status</h4>
+                            <Link to="/admin/courses" className="text-skin text-[12px] inline-flex items-center gap-1 hover:underline">
+                                Explore <i className="fi-rr-arrow-up-right" />
+                            </Link>
                         </div>
-                        <div className="flex items-center gap-4 flex-wrap">
-                            <div className="w-[140px] h-[140px] rounded-full flex-shrink-0" style={{
-                                background: `conic-gradient(${statusItems.map((i, idx, arr) => {
-                                    const prev = arr.slice(0, idx).reduce((s, x) => s + (status_counts[x.key] || 0), 0);
-                                    const cur = prev + (status_counts[i.key] || 0);
-                                    return `${i.color} ${(prev / totalStatus) * 360}deg ${(cur / totalStatus) * 360}deg`;
-                                }).join(', ')})`
-                            }}>
-                                <div className="w-full h-full rounded-full bg-white scale-[0.55]"></div>
+                        <div className="flex items-center gap-6 flex-wrap">
+                            <div className="relative w-[160px] h-[160px] shrink-0">
+                                <div
+                                    className="w-full h-full rounded-full"
+                                    style={{
+                                        background: totalStatus === 0
+                                            ? '#eef1fb'
+                                            : `conic-gradient(${statusItems.map((i, idx, arr) => {
+                                                const prev = arr.slice(0, idx).reduce((s, x) => s + (status_counts[x.key] || 0), 0);
+                                                const cur = prev + (status_counts[i.key] || 0);
+                                                return `${i.color} ${(prev / denom) * 360}deg ${(cur / denom) * 360}deg`;
+                                            }).join(', ')})`,
+                                    }}
+                                />
+                                {/* Centre hole + total count overlay. */}
+                                <div className="absolute inset-0 m-auto w-[96px] h-[96px] rounded-full bg-white flex flex-col items-center justify-center shadow-[0_1px_6px_rgba(10,16,23,0.06)]">
+                                    <span className="text-[24px] font-bold text-dark leading-none">{totalStatus}</span>
+                                    <span className="text-[11px] text-gray mt-1">Total</span>
+                                </div>
                             </div>
-                            <ul>
+                            <ul className="flex-1 min-w-[220px]">
                                 {statusItems.map((i) => (
-                                    <StatusLegend key={i.key} label={`${i.label} (${status_counts[i.key] || 0})`} color={i.color} />
+                                    <StatusLegend
+                                        key={i.key}
+                                        label={i.label}
+                                        count={status_counts[i.key] || 0}
+                                        pct={pctOf(status_counts[i.key] || 0)}
+                                        color={i.color}
+                                    />
                                 ))}
                             </ul>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Quick actions */}
+                <div className="ol-card h-full">
+                    <div className="ol-card-body p-5">
+                        <h4 className="text-[15px] font-semibold text-dark mb-4 m-0">Quick actions</h4>
+                        <div className="space-y-2.5">
+                            <QuickAction icon={BsMortarboard} label="Manage Courses" to="/admin/courses" />
+                            <QuickAction icon={BsPeople} label="Manage Students" to="/admin/students" />
+                            <QuickAction icon={BsPersonBadge} label="Manage Instructors" to="/admin/instructors" />
                         </div>
                     </div>
                 </div>

@@ -93,6 +93,7 @@ const create = async ({ course_id, body }) => {
         provider: b.provider || 'jitsi',
         class_date_and_time: b.class_date_and_time,
         note: b.note || null,
+        recordings: b.recordings || null,
     };
 
     if (data.provider === 'zoom') {
@@ -125,6 +126,7 @@ const update = async ({ id, body }) => {
         user_id: b.user_id,
         class_date_and_time: b.class_date_and_time,
         note: b.note || null,
+        recordings: b.recordings || null,
     };
 
     if (lc.provider === 'zoom' && lc.additional_info) {

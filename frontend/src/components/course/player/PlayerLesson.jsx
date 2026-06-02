@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import QuizPlayer from './QuizPlayer';
+import YouTubePlayer from './YouTubePlayer';
 
 // Same env var the rest of the app uses (Home/Overview/Programspage). System
 // videos and uploaded documents are persisted as RELATIVE paths
@@ -101,7 +102,39 @@ const googleIdFrom = (url) => {
     return eqMatch ? eqMatch[1] : '';
 };
 
-export default function PlayerLesson({ lesson, course, locked, lockedMessage, onLessonEnded, onTimeUpdate }) {
+// Wraps a plain <iframe> player (Vimeo/Drive) and reports the user's first
+// interaction via onActivate. We can't read playback from these embeds, so the
+// signal is: pointer is over the player AND the window loses focus (the click
+// went into the cross-origin iframe). This lets the page distinguish "user
+// started watching" from "lesson opened and left idle" without an extra
+// overlay. Best-effort — false negatives just mean wall-clock starts on the
+// next interaction.
+function IframeActivationWrapper({ onActivate, children }) {
+    const overRef = useRef(false);
+    useEffect(() => {
+        const onBlur = () => {
+            // Defer one tick so document.activeElement reflects the iframe.
+            setTimeout(() => {
+                if (overRef.current && document.activeElement?.tagName === 'IFRAME') {
+                    onActivate?.();
+                }
+            }, 0);
+        };
+        window.addEventListener('blur', onBlur);
+        return () => window.removeEventListener('blur', onBlur);
+    }, [onActivate]);
+    return (
+        <div
+            onPointerEnter={() => { overRef.current = true; }}
+            onPointerLeave={() => { overRef.current = false; }}
+            className="w-full h-full"
+        >
+            {children}
+        </div>
+    );
+}
+
+export default function PlayerLesson({ lesson, course, locked, lockedMessage, onLessonEnded, onTimeUpdate, onActivate }) {
     if (locked) {
         return (
             <div className="bg-black/30 rounded-xl p-12 text-center text-white/80 my-8">
@@ -121,7 +154,7 @@ export default function PlayerLesson({ lesson, course, locked, lockedMessage, on
 
     return (
         <div className="rounded-xl overflow-hidden bg-black mb-4">
-            <LessonRenderer lesson={lesson} course={course} onLessonEnded={onLessonEnded} onTimeUpdate={onTimeUpdate} />
+            <LessonRenderer lesson={lesson} course={course} onLessonEnded={onLessonEnded} onTimeUpdate={onTimeUpdate} onActivate={onActivate} />
         </div>
     );
 }
@@ -226,7 +259,7 @@ function PdfViewer({ src, downloadName, title }) {
     );
 }
 
-function LessonRenderer({ lesson, course, onLessonEnded, onTimeUpdate }) {
+function LessonRenderer({ lesson, course, onLessonEnded, onTimeUpdate, onActivate }) {
     const t = lesson.lesson_type;
 
     if (t === 'text') {
@@ -236,16 +269,32 @@ function LessonRenderer({ lesson, course, onLessonEnded, onTimeUpdate }) {
     }
 
     if (t === 'video-url') {
-        const src = isYouTube(lesson.lesson_src) ? toYouTubeEmbed(lesson.lesson_src) : lesson.lesson_src;
+        // YouTube goes through the IFrame Player API (YouTubePlayer) so we can
+        // observe REAL playback — watched-seconds only advances while the video
+        // is actually playing, not while it sits paused on screen. Non-YouTube
+        // URLs fall back to a plain iframe (no playback signal available).
+        if (isYouTube(lesson.lesson_src)) {
+            return (
+                <YouTubePlayer
+                    key={lesson.id}
+                    url={lesson.lesson_src}
+                    title={lesson.title}
+                    onTimeUpdate={onTimeUpdate}
+                    onEnded={onLessonEnded}
+                />
+            );
+        }
         return (
             <div className="aspect-video-shell">
-                <iframe
-                    src={src}
-                    allow="autoplay; encrypted-media; fullscreen"
-                    allowFullScreen
-                    className="w-full h-full"
-                    title={lesson.title}
-                />
+                <IframeActivationWrapper onActivate={onActivate}>
+                    <iframe
+                        src={lesson.lesson_src}
+                        allow="autoplay; encrypted-media; fullscreen"
+                        allowFullScreen
+                        className="w-full h-full"
+                        title={lesson.title}
+                    />
+                </IframeActivationWrapper>
             </div>
         );
     }
@@ -274,13 +323,15 @@ function LessonRenderer({ lesson, course, onLessonEnded, onTimeUpdate }) {
         const vid = vimeoIdFrom(lesson.lesson_src);
         return (
             <div className="aspect-video-shell">
-                <iframe
-                    src={`https://player.vimeo.com/video/${vid}?title=0&byline=0&portrait=0`}
-                    allow="autoplay; fullscreen"
-                    allowFullScreen
-                    className="w-full h-full"
-                    title={lesson.title}
-                />
+                <IframeActivationWrapper onActivate={onActivate}>
+                    <iframe
+                        src={`https://player.vimeo.com/video/${vid}?title=0&byline=0&portrait=0`}
+                        allow="autoplay; fullscreen"
+                        allowFullScreen
+                        className="w-full h-full"
+                        title={lesson.title}
+                    />
+                </IframeActivationWrapper>
             </div>
         );
     }
@@ -289,13 +340,15 @@ function LessonRenderer({ lesson, course, onLessonEnded, onTimeUpdate }) {
         const id = googleIdFrom(lesson.lesson_src);
         return (
             <div className="aspect-video-shell bg-black">
-                <iframe
-                    src={`https://drive.google.com/file/d/${id}/preview`}
-                    allow="autoplay"
-                    allowFullScreen
-                    className="w-full h-full"
-                    title={lesson.title}
-                />
+                <IframeActivationWrapper onActivate={onActivate}>
+                    <iframe
+                        src={`https://drive.google.com/file/d/${id}/preview`}
+                        allow="autoplay"
+                        allowFullScreen
+                        className="w-full h-full"
+                        title={lesson.title}
+                    />
+                </IframeActivationWrapper>
             </div>
         );
     }

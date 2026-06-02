@@ -5,6 +5,7 @@ const sectionRepo = require('../repositories/SectionRepository');
 const lessonRepo = require('../repositories/LessonRepository');
 const questionRepo = require('../repositories/QuestionRepository');
 const submissionRepo = require('../repositories/QuizSubmissionRepository');
+const { Lesson, LessonCompletion, LessonWatchProgress, UserProgress } = require('../models');
 const { removeFile } = require('../helpers/fileUploader');
 const { HttpError } = require('../middlewares/error');
 
@@ -125,6 +126,14 @@ const updateSection = async ({ section_id, up_title }) => {
 const deleteSection = async (id) => {
     const s = await sectionRepo.findById(id);
     if (!s) throw new HttpError(404, 'Section not found');
+    // lessons.section_id FKs to sections with NO ACTION (no DB cascade), so the
+    // section's lessons must be removed first or s.destroy() trips
+    // ER_ROW_IS_REFERENCED_2. Route each through deleteLesson so their own
+    // child rows (quiz, watch-progress, completions, files) are cleaned up too.
+    const lessons = await Lesson.findAll({ where: { section_id: s.id } });
+    for (const lesson of lessons) {
+        await deleteLesson(lesson.id);
+    }
     await s.destroy();
     return { message: 'Delete successfully' };
 };
@@ -365,6 +374,20 @@ const deleteLesson = async (id) => {
         await questionRepo.destroyByQuiz(lesson.id);
         await submissionRepo.destroyByQuiz(lesson.id);
     }
+
+    // Remove the student-progress rows that FK back to this lesson, otherwise
+    // lesson.destroy() trips ER_ROW_IS_REFERENCED_2 (fk_lesson_completions_lesson
+    // / fk_lwp_lesson) once anyone has watched or completed the lesson. These
+    // tables are populated by the player's progress/complete endpoints.
+    await LessonCompletion.destroy({ where: { lesson_id: lesson.id } });
+    await LessonWatchProgress.destroy({ where: { lesson_id: lesson.id } });
+    // user_progress.last_lesson_id also FKs to lessons (fk_user_progress_last_lesson).
+    // Null it out for any student whose resume-point was this lesson rather than
+    // deleting their enrollment row.
+    await UserProgress.update(
+        { last_lesson_id: null },
+        { where: { last_lesson_id: lesson.id } },
+    );
 
     await lesson.destroy();
     return { message: 'Deleted successfully' };

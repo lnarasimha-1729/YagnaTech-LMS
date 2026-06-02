@@ -79,6 +79,7 @@ const get = async (id) => {
     const rows = await authDb.query(
         `SELECT u.userId AS id, u.name, u.email, u.phone, u.dob, u.gender,
                 u.expertise, u.bio, u.yearsOfExperience, u.linkedinUrl,
+                u.facebookUrl, u.twitterUrl,
                 u.address, u.instructorPhoto, u.createdAt
            FROM users u
            JOIN roles r ON r.roleId = u.roleId
@@ -131,12 +132,12 @@ const create = async (body, file = null) => {
     await authDb.query(
         `INSERT INTO users
             (userId, name, email, passwordHash, phone, roleId,
-             expertise, bio, yearsOfExperience, linkedinUrl, address,
-             instructorPhoto, createdAt, updatedAt)
+             expertise, bio, yearsOfExperience, linkedinUrl, facebookUrl,
+             twitterUrl, address, instructorPhoto, createdAt, updatedAt)
          VALUES
             (:userId, :name, :email, :passwordHash, :phone, :roleId,
-             :expertise, :bio, :yearsOfExperience, :linkedinUrl, :address,
-             :instructorPhoto, NOW(), NOW())`,
+             :expertise, :bio, :yearsOfExperience, :linkedinUrl, :facebookUrl,
+             :twitterUrl, :address, :instructorPhoto, NOW(), NOW())`,
         {
             replacements: {
                 userId,
@@ -150,6 +151,8 @@ const create = async (body, file = null) => {
                 yearsOfExperience: body.yearsOfExperience != null && body.yearsOfExperience !== ''
                     ? Number(body.yearsOfExperience) : null,
                 linkedinUrl: body.linkedinUrl || null,
+                facebookUrl: body.facebookUrl || null,
+                twitterUrl: body.twitterUrl || null,
                 address: body.address || null,
                 instructorPhoto: photoPath,
             },
@@ -170,6 +173,7 @@ const update = async (id, body, file = null) => {
         'name = :name', 'email = :email', 'phone = :phone',
         'expertise = :expertise', 'bio = :bio',
         'yearsOfExperience = :yearsOfExperience', 'linkedinUrl = :linkedinUrl',
+        'facebookUrl = :facebookUrl', 'twitterUrl = :twitterUrl',
         'address = :address',
     ];
     const replacements = {
@@ -182,6 +186,8 @@ const update = async (id, body, file = null) => {
         yearsOfExperience: body.yearsOfExperience != null && body.yearsOfExperience !== ''
             ? Number(body.yearsOfExperience) : null,
         linkedinUrl: body.linkedinUrl ?? null,
+        facebookUrl: body.facebookUrl ?? null,
+        twitterUrl: body.twitterUrl ?? null,
         address: body.address ?? null,
     };
     if (body.password) {

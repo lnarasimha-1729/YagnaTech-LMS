@@ -157,12 +157,23 @@ const list = async ({ page = 1, per_page = 10, search = '', college = '', batch 
                         totals.map((t) => [Number(t.course_id), Number(t.total) || 0])
                     );
 
+                    // Count completed lessons by JOINing through `lessons` so a
+                    // completion only counts when the lesson STILL EXISTS and
+                    // STILL BELONGS to that course. lesson_completions.course_id
+                    // alone can drift (stale rows, a lesson re-homed to another
+                    // course), which would let `completed` exceed `total` and
+                    // push the percentage past 100%. The join makes the numerator
+                    // and denominator come from the same source of truth (the
+                    // course's current lesson set). DISTINCT lesson_id guards
+                    // against any duplicate completion rows.
                     const done = await sequelize.query(
-                        `SELECT user_id, course_id, COUNT(*) AS completed
-                           FROM lesson_completions
-                          WHERE user_id IN (:ids)
-                            AND course_id IN (:cids)
-                          GROUP BY user_id, course_id`,
+                        `SELECT lc.user_id, l.course_id,
+                                COUNT(DISTINCT lc.lesson_id) AS completed
+                           FROM lesson_completions lc
+                           JOIN lessons l ON l.id = lc.lesson_id
+                          WHERE lc.user_id IN (:ids)
+                            AND l.course_id IN (:cids)
+                          GROUP BY lc.user_id, l.course_id`,
                         { replacements: { ids, cids: courseIds }, type: QueryTypes.SELECT }
                     );
                     const doneByKey = Object.fromEntries(
@@ -174,7 +185,12 @@ const list = async ({ page = 1, per_page = 10, search = '', college = '', batch 
                     Object.entries(enrolledByUser).forEach(([uid, courses]) => {
                         courses.forEach((c) => {
                             const total = totalByCourse[Number(c.id)] || 0;
-                            const completed = doneByKey[`${uid}:${Number(c.id)}`] || 0;
+                            // Clamp to total so progress can never read above 100%
+                            // even if a stray completion slips past the join.
+                            const completed = Math.min(
+                                doneByKey[`${uid}:${Number(c.id)}`] || 0,
+                                total,
+                            );
                             const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
                             c.total_lessons = total;
                             c.completed_lessons = completed;

@@ -50,6 +50,16 @@ export default function LiveClassTab({ course }) {
                             <div className="flex-1 min-w-[200px]">
                                 <h4 className="text-[15px] font-semibold text-dark m-0">{c.class_topic}</h4>
                                 <p className="text-[13px] text-gray m-0">{fmt(c.class_date_and_time)} · {c.provider}</p>
+                                {c.recordings && (
+                                    <a
+                                        href={c.recordings}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-[12px] text-skin mt-1 hover:underline"
+                                    >
+                                        <span className="fi-rr-play" /> Recording
+                                    </a>
+                                )}
                             </div>
                             <div className="flex items-center gap-2">
                                 <button type="button" className="ol-btn-outline-secondary ol-btn-sm" onClick={() => handleStart(c.id)}>Start</button>

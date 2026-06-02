@@ -146,6 +146,7 @@ export default function LiveClassPane({ course }) {
                                 <th className="text-left py-2 pr-3">Date &amp; time</th>
                                 <th className="text-left py-2 pr-3">Status</th>
                                 <th className="text-left py-2 pr-3">Action</th>
+                                <th className="text-left py-2 pr-3">Recording</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -174,6 +175,22 @@ export default function LiveClassPane({ course }) {
                                                 <i className="fa fa-video mr-1" />
                                                 {joiningId === lc.id ? 'Joining…' : 'Join now'}
                                             </button>
+                                        </td>
+                                        <td className="py-2 pr-3">
+                                            {lc.recordings ? (
+                                                <a
+                                                    href={lc.recordings}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1.5 text-skin hover:underline"
+                                                    title="Watch recording"
+                                                >
+                                                    <i className="fa fa-circle-play" />
+                                                    Watch recording
+                                                </a>
+                                            ) : (
+                                                <span className="text-gray-400">—</span>
+                                            )}
                                         </td>
                                     </tr>
                                 );

@@ -40,6 +40,11 @@ const baseChecks = (body, errors) => {
     else if (body.class_topic.length > 255) errors.class_topic = 'Class topic must be at most 255 characters';
     if (!isParseableDate(body.class_date_and_time)) errors.class_date_and_time = 'Class date and time is required';
     if (!body.user_id || !Number(body.user_id)) errors.user_id = 'Instructor is required';
+    // Recordings link is optional, but when supplied it must be a valid
+    // http(s) URL (same rule as a manual meeting link).
+    if (isNonEmptyString(body.recordings) && !isHttpUrl(body.recordings)) {
+        errors.recordings = 'Enter a valid recording link (https://…)';
+    }
 };
 
 const validateStore = (body) => {

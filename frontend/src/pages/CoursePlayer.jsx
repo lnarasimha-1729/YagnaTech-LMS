@@ -77,10 +77,35 @@ export default function CoursePlayer() {
     const playbackTimeRef = useRef(0);
     const lessonOpenedAtRef = useRef(Date.now());
 
-    // Lesson types whose UI is an <iframe>. These never fire timeupdate, so
-    // their watched-seconds signal is wall-clock — same approach Udemy/Coursera
-    // use for embedded video they don't host.
-    const IFRAME_LESSON_TYPES = ['video-url', 'vimeo-url', 'google_drive'];
+    // Lesson types that report REAL playback via onTimeUpdate, so we can trust
+    // their current time and never count paused time. Native <video>
+    // (system-video/html5) does this natively; YouTube does it through the
+    // IFrame Player API (YouTubePlayer), which only ticks while playing.
+    const isYouTubeUrl = (url) => /youtu/i.test(String(url || ''));
+
+    // Lesson types whose UI is a plain <iframe> with NO playback signal
+    // (Vimeo/Drive, and non-YouTube video-url). Their watched-seconds fall back
+    // to wall-clock, gated on the tab being visible AND the user having
+    // actually interacted with the player (see `activatedRef`).
+    const hasRealPlayback = (lesson) => {
+        const t = lesson?.lesson_type;
+        if (t === 'system-video' || t === 'html5') return true;
+        if (t === 'video-url' && isYouTubeUrl(lesson.lesson_src)) return true;
+        return false;
+    };
+
+    // Set once the user actually interacts with a wall-clock (Vimeo/Drive)
+    // player. Until then we don't count time, so just opening a lesson and
+    // walking away no longer auto-completes it. We re-baseline the wall clock
+    // to the activation moment so elapsed time is measured from first
+    // interaction, not from when the lesson opened.
+    const activatedRef = useRef(false);
+    const handlePlayerActivate = () => {
+        if (!activatedRef.current) {
+            activatedRef.current = true;
+            lessonOpenedAtRef.current = Date.now();
+        }
+    };
 
     const handleTimeUpdate = (t) => { playbackTimeRef.current = Number(t) || 0; };
 
@@ -95,33 +120,43 @@ export default function CoursePlayer() {
         console.log('[player tick] lesson_type =', lesson.lesson_type, '| is video?', VIDEO_TYPES.includes(lesson.lesson_type));
         if (!VIDEO_TYPES.includes(lesson.lesson_type)) return;
 
-        const isIframe = IFRAME_LESSON_TYPES.includes(lesson.lesson_type);
+        // Lessons with a real playback signal (native <video>, YouTube via the
+        // IFrame API) report actual current time and only while playing.
+        // Everything else (Vimeo/Drive) falls back to wall-clock.
+        const realPlayback = hasRealPlayback(lesson);
         playbackTimeRef.current = 0;
         lessonOpenedAtRef.current = Date.now();
+        activatedRef.current = false;
         let lastReported = -1;
         let stopped = false;
-        console.log('[player tick] interval started. isIframe =', isIframe, '| course_id =', data.course.id, '| lesson_id =', lesson.id);
+        console.log('[player tick] interval started. realPlayback =', realPlayback, '| course_id =', data.course.id, '| lesson_id =', lesson.id);
 
         const interval = setInterval(async () => {
             if (stopped) return;
-            // Iframe lessons: count wall-clock seconds since the lesson
-            // opened, BUT only while the tab is visible — otherwise a
-            // student could background the tab and silently auto-complete.
-            // Native <video>: use the real playback position from the
-            // timeupdate event, so pausing doesn't keep advancing.
+            // Real-playback lessons: use the actual playback position, so a
+            // paused video never advances. Wall-clock lessons (Vimeo/Drive):
+            // count seconds since the lesson opened, but only while the tab is
+            // visible AND the user has interacted with the player — so just
+            // opening a lesson and leaving it idle doesn't auto-complete it.
             let current;
-            if (isIframe) {
+            if (realPlayback) {
+                current = Math.round(playbackTimeRef.current);
+            } else {
                 if (typeof document !== 'undefined' && document.hidden) {
                     console.log('[player tick] tab hidden, skip');
                     return;
                 }
-                current = Math.floor((Date.now() - lessonOpenedAtRef.current) / 1000);
-            } else {
-                current = Math.floor(playbackTimeRef.current);
+                if (!activatedRef.current) {
+                    console.log('[player tick] player not yet activated, skip');
+                    return;
+                }
+                current = Math.round((Date.now() - lessonOpenedAtRef.current) / 1000);
             }
-            // Round down to the nearest 5s tick (server bucket size) and
-            // skip duplicates.
-            const tick = Math.floor(current / 5) * 5;
+            // Report the actual playback position (rounded to whole seconds), not
+            // a 5s-floored bucket — the server's completion math should see the
+            // true watched time. We still poll every 5s; the duplicate guard just
+            // skips a tick when the position hasn't advanced (e.g. paused).
+            const tick = current;
             console.log('[player tick] current =', current, '| tick =', tick, '| lastReported =', lastReported);
             if (tick <= 0 || tick === lastReported) return;
             lastReported = tick;
@@ -199,6 +234,7 @@ export default function CoursePlayer() {
                                 lockedMessage={dripSettings.locked_lesson_message}
                                 onLessonEnded={onMarkComplete}
                                 onTimeUpdate={handleTimeUpdate}
+                                onActivate={handlePlayerActivate}
                             />
                             <button
                                 type="button"
