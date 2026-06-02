@@ -1,0 +1,21 @@
+# Production overrides for docker-compose.yml
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# What this changes vs. the base file:
+#  - Binds Bastion (8000) and admin-service (4000) to 127.0.0.1 only, so the
+#    host Nginx can reach them but they are NOT exposed to the public internet.
+#  - admin-service must be browser-reachable (frontend calls it directly), so it
+#    gets a published localhost port instead of `expose`.
+#  - Sets BASTION_ALLOWED_ORIGINS from the host environment (export it before up,
+#    or it falls back to the placeholder domain).
+services:
+  bastion:
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      - BASTION_ALLOWED_ORIGINS=${BASTION_ALLOWED_ORIGINS:-https://app.yourdomain.com}
+
+  admin-service:
+    ports:
+      - "127.0.0.1:4000:4000"
