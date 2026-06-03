@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const env = require('./config/env');
 const { sequelize } = require('./models');
-const { adminOnly, auth, adminOrInstructor } = require('./middlewares/auth');
+const { adminOnly, rootOnly, auth, adminOrInstructor } = require('./middlewares/auth');
 const { errorHandler } = require('./middlewares/error');
 
 const authRoutes = require('./routes/auth.routes');
@@ -425,8 +425,16 @@ app.use('/api/public', zoomLiveClassRoutes.public);
 app.use('/api/admin', auth, forumRoutes.admin);
 app.use('/api/public', forumRoutes.public);
 
-// Protected admin endpoints — adminOnly enforces JWT + role
-app.use('/api/admin', adminOnly, adminRoutes);
+// Root-only endpoints — global management a single college's admin must NOT
+// reach. rootOnly requires role==='root'.
+//   adminRoutes   → manage other admins (/admins CRUD) + global /dashboard
+//   collegeRoutes → create/update/delete colleges + revoke/grant access
+app.use('/api/admin', rootOnly, adminRoutes);
+app.use('/api/admin', rootOnly, collegeRoutes);
+
+// Protected admin endpoints — adminOnly enforces JWT + role (admin OR root).
+// College-scoped surfaces a college admin legitimately uses; the service layer
+// scopes results by req.user.college_id where applicable.
 app.use('/api/admin', adminOnly, quizRoutes);
 app.use('/api/admin', adminOnly, liveClassRoutes);
 app.use('/api/admin', adminOnly, couponRoutes);
@@ -434,7 +442,6 @@ app.use('/api/admin', adminOnly, programRoutes);
 app.use('/api/admin', adminOnly, certificateRoutes);
 app.use('/api/admin', adminOnly, collegeDashboardRoutes);
 app.use('/api/admin', adminOnly, batchRoutes);
-app.use('/api/admin', adminOnly, collegeRoutes);
 app.use('/api/admin', adminOnly, studentRoutes);
 app.use('/api/admin', adminOnly, instructorRoutes);
 app.use('/api/admin', adminOnly, languageRoutes);

@@ -106,7 +106,7 @@ const Login = () => {
       // The race might have lost on the admin side — but if this user is an
       // admin we still need a valid admin_token for /admin/* pages. Try the
       // admin bridge in the background; non-fatal if it fails.
-      let bridgedAdmin: { college_id?: string | null; is_root_admin?: boolean } | null = null;
+      let bridgedAdmin: { role?: string; college_id?: string | null; is_root_admin?: boolean } | null = null;
       if (loggedInUser.role === "admin") {
         try {
           const bridge = await adminLogin(email, password);
@@ -115,19 +115,23 @@ const Login = () => {
           console.warn("[Login] admin-service bridge failed (college admin?):", bridgeErr);
           if (loggedInUser.collegeId) {
             localStorage.setItem("admin_user", JSON.stringify({
+              role: "admin",
               college_id: loggedInUser.collegeId,
               userId: loggedInUser.userId,
               email: loggedInUser.email,
               name: loggedInUser.name,
-              // auth-service-only admins are never the root admin (root lives
-              // exclusively in admin-service), so this flag is always false.
+              // auth-service-only admins are college admins, never root (root
+              // lives exclusively in admin-service with role==='root').
               is_root_admin: false,
             }));
           }
         }
       }
 
-      const isRootAdmin = bridgedAdmin?.is_root_admin === true;
+      // role==='root' is the source of truth; is_root_admin kept as a fallback
+      // for older tokens. (auth-service winners are college admins anyway.)
+      const isRootAdmin =
+        bridgedAdmin?.role === "root" || bridgedAdmin?.is_root_admin === true;
       const adminLandingPath = isRootAdmin ? "/admin/dashboard" : "/admin/college";
       navigate(loggedInUser.role === "admin" ? adminLandingPath : "/dashboard", { replace: true });
       return;
@@ -136,7 +140,8 @@ const Login = () => {
     if (winner?.kind === 'admin') {
       const adminUser: { college_id?: string | null; role?: string; is_root_admin?: boolean } =
         winner.bridge?.user || {};
-      const landing = adminUser.is_root_admin ? "/admin/dashboard" : "/admin/college";
+      const isRootAdmin = adminUser.role === "root" || adminUser.is_root_admin === true;
+      const landing = isRootAdmin ? "/admin/dashboard" : "/admin/college";
       navigate(landing, { replace: true });
       return;
     }

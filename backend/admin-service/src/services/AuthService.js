@@ -34,30 +34,25 @@ const sanitize = (u) => {
     return o;
 };
 
-// Root admin = the lowest-id admin row. Cached at module load so signToken
-// stays sync (the JWT signing path runs on every login & doesn't need to
-// re-query the DB). If the root row is ever deleted/re-seeded the service
-// must be restarted — same constraint that already exists in AdminService.
-let cachedRootId = null;
-const getRootId = async () => {
-    if (cachedRootId !== null) return cachedRootId;
-    cachedRootId = await userRepo.findRootAdminId();
-    return cachedRootId;
-};
+// Root admin is now identified by the stored role: role === 'root'. This
+// replaces the old lowest-id / email-pinned lookup (and its module-load cache,
+// which needed a service restart whenever the root row changed). The role
+// travels in the JWT, so no DB lookup is needed to know who is root.
+const isRoot = (user) => user?.role === 'root';
 
-const signToken = (user, isRootAdmin) =>
+const signToken = (user) =>
     jwt.sign(
-        // college_id is included so college-admin endpoints can scope by it
-        // without a second DB lookup per request. is_root_admin is included
-        // so the frontend can route root admins to the regular dashboard and
-        // every other admin to the college dashboard without an extra fetch.
+        // role distinguishes 'root' (global super admin) from 'admin' (college
+        // admin); college_id scopes college-admin endpoints without a second DB
+        // lookup. is_root_admin is kept as a derived convenience flag for older
+        // clients, but role==='root' is the source of truth.
         {
             id: user.id,
             email: user.email,
             role: user.role,
             name: user.name,
             college_id: user.college_id || null,
-            is_root_admin: !!isRootAdmin,
+            is_root_admin: isRoot(user),
         },
         env.jwt.secret,
         { expiresIn: env.jwt.expiresIn }
@@ -78,8 +73,7 @@ const login = async ({ email, password }) => {
     const ok = user.password ? await bcrypt.compare(password, user.password) : false;
     if (!ok) throw new HttpError(401, 'Invalid credentials');
 
-    const rootId = await getRootId();
-    const isRootAdmin = user.id === rootId;
+    const isRootAdmin = isRoot(user);
     // Root admin keeps access regardless of college state — they need to be
     // able to log in and toggle access back on. Everyone else (college-admin
     // role) gets the gate.
@@ -87,7 +81,7 @@ const login = async ({ email, password }) => {
         await assertCollegeActive(user.college_id);
     }
     return {
-        token: signToken(user, isRootAdmin),
+        token: signToken(user),
         user: { ...sanitize(user), is_root_admin: isRootAdmin },
     };
 };
@@ -95,8 +89,7 @@ const login = async ({ email, password }) => {
 const me = async (userId) => {
     const user = await userRepo.findById(userId);
     if (!user) throw new HttpError(404, 'User not found');
-    const rootId = await getRootId();
-    return { ...sanitize(user), is_root_admin: user.id === rootId };
+    return { ...sanitize(user), is_root_admin: isRoot(user) };
 };
 
 // Change the signed-in user's password. Verifies the current password against

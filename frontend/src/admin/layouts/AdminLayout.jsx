@@ -194,7 +194,10 @@ export default function AdminLayout() {
     // endpoint itself 403s if the JWT lacks a college_id, which surfaces a
     // clear "missing college" error rather than silently showing zeros.)
     const isInstructor = adminUser?.role === 'instructor';
-    const isRootAdmin = !isInstructor && adminUser?.is_root_admin === true;
+    // role==='root' is the source of truth; is_root_admin kept as a fallback
+    // for older stored users / tokens.
+    const isRootAdmin =
+        !isInstructor && (adminUser?.role === 'root' || adminUser?.is_root_admin === true);
     const isCollegeAdmin = !isInstructor && !isRootAdmin;
 
     // Three cohorts, three sidebars:
