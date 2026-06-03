@@ -8,7 +8,13 @@ const findByEmail = (email) => User.findOne({ where: { email } });
 const findByIdAndRole = (id, role) => User.findOne({ where: { id, role } });
 
 const findRootAdminId = async () => {
-    const root = await User.findOne({ where: { role: 'admin' }, order: [['id', 'ASC']], attributes: ['id'] });
+    const root = await User.findOne({
+        where: {
+            email: 'admin@gmail.com'
+        },
+        attributes: ['id']
+    });
+
     return root ? root.id : null;
 };
 
