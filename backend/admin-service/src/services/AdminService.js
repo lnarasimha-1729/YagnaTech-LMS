@@ -21,14 +21,15 @@ const list = async ({ page = 1, per_page = 10, search = '' }) => {
             offset,
             order: [['id', 'ASC']],
         });
-        const rootId = await userRepo.findRootAdminId();
+        // This list is role==='admin' (college admins) only — root lives under
+        // role==='root' and is intentionally not shown here.
         const admins = await Promise.all(
             rows.map(async (r) => {
                 const course_count = await userRepo.courseCountFor(r.id);
-                return { ...sanitize(r), course_count, is_root_admin: r.id === rootId };
+                return { ...sanitize(r), course_count, is_root_admin: r.role === 'root' };
             })
         );
-        return { admins, total: count, page: Number(page), per_page: limit, root_admin_id: rootId };
+        return { admins, total: count, page: Number(page), per_page: limit };
     } catch (err) {
         console.warn('[admins] DB query failed:', err.message);
         return { admins: [], total: 0, page: Number(page), per_page: limit, root_admin_id: null };
@@ -38,8 +39,7 @@ const list = async ({ page = 1, per_page = 10, search = '' }) => {
 const get = async (id) => {
     const admin = await userRepo.findByIdAndRole(id, 'admin');
     if (!admin) throw new HttpError(404, 'Admin not found');
-    const rootId = await userRepo.findRootAdminId();
-    return { admin: { ...sanitize(admin), is_root_admin: admin.id === rootId } };
+    return { admin: { ...sanitize(admin), is_root_admin: admin.role === 'root' } };
 };
 
 const create = async (body, file) => {
@@ -135,8 +135,11 @@ const update = async (id, body, file) => {
 
 const remove = async (id) => {
     const numericId = Number(id);
-    const rootId = await userRepo.findRootAdminId();
-    if (numericId === rootId) throw new HttpError(403, 'Cannot delete root admin');
+    // Root lives under role==='root'; findByIdAndRole(...,'admin') only matches
+    // college admins, so the root row can never be deleted through here. Keep an
+    // explicit guard in case the lookup is ever broadened.
+    const target = await userRepo.findById(numericId);
+    if (target?.role === 'root') throw new HttpError(403, 'Cannot delete root admin');
 
     const admin = await userRepo.findByIdAndRole(numericId, 'admin');
     if (!admin) throw new HttpError(404, 'Admin not found');

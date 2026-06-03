@@ -683,14 +683,17 @@ const draft = async (id) => {
 };
 
 const duplicate = async ({ id, userId, role }) => {
+    // root is a superset of admin: both may duplicate any course. Anyone else
+    // (instructor) is scoped to courses they own.
+    const isAdmin = role === 'admin' || role === 'root';
     const where = { id };
-    if (role && role !== 'admin') where.user_id = userId;
+    if (role && !isAdmin) where.user_id = userId;
 
     const course = await courseRepo.findOne(where);
     if (!course) throw new HttpError(404, 'Data not found.');
 
     const data = course.toJSON();
-    if (role === 'admin') data.user_id = userId;
+    if (isAdmin) data.user_id = userId;
     delete data.id;
     delete data.created_at;
     delete data.updated_at;

@@ -7,17 +7,6 @@ const findByEmail = (email) => User.findOne({ where: { email } });
 
 const findByIdAndRole = (id, role) => User.findOne({ where: { id, role } });
 
-const findRootAdminId = async () => {
-    const root = await User.findOne({
-        where: {
-            email: 'admin@gmail.com'
-        },
-        attributes: ['id']
-    });
-
-    return root ? root.id : null;
-};
-
 const buildSearchWhere = (role, search) => {
     const where = { role };
     if (search) {
@@ -57,7 +46,6 @@ module.exports = {
     findById,
     findByEmail,
     findByIdAndRole,
-    findRootAdminId,
     paginateByRole,
     isEmailTaken,
     create,
