@@ -27,11 +27,13 @@ async function fetchPreAssessmentStats(clgId) {
     const pre = pres.find(matches) || pres[0];
     const qs = await QuestionSet.findByPk(pre.setId);
     const questionCount = qs && Array.isArray(qs.questions) ? qs.questions.length : 0;
+    // Assessment.timer is stored in SECONDS — convert to minutes for the email.
+    const durationMinutes = pre.timer ? Math.round(Number(pre.timer) / 60) : null;
     return {
       questionCount,
       // No per-question marks in the schema — 1 mark per question.
       totalMarks: questionCount,
-      durationMinutes: pre.timer || null,
+      durationMinutes,
     };
   } catch (e) {
     console.warn("[preAssessmentRegistration] assessment stats lookup failed:", e.message);
