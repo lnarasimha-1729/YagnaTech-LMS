@@ -20,7 +20,17 @@ const upload = async (file, destPath, width = null, height = null) => {
         await sharp(file.path).resize(width, height, { fit: 'cover' }).toFile(full);
         fs.unlinkSync(file.path);
     } else {
-        fs.renameSync(file.path, full);
+        // rename() fails with EXDEV when src and dest live on different
+        // filesystems — which is exactly the prod case: /app/tmp is the
+        // container overlay fs while /app/uploads is a mounted Docker volume.
+        // Try the fast rename first; fall back to copy+unlink across devices.
+        try {
+            fs.renameSync(file.path, full);
+        } catch (err) {
+            if (err.code !== 'EXDEV') throw err;
+            fs.copyFileSync(file.path, full);
+            fs.unlinkSync(file.path);
+        }
     }
     return destPath;
 };

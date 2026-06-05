@@ -11,6 +11,20 @@ const { HttpError } = require('../middlewares/error');
 
 const PUBLIC_ROOT = path.join(__dirname, '..', '..');
 
+// Move an uploaded temp file to its destination. rename() throws EXDEV when
+// src (container overlay /app/tmp) and dest (mounted Docker volume
+// /app/uploads) are on different filesystems — the prod case — so fall back to
+// copy+unlink, which works across devices.
+const moveFile = (srcPath, destPath) => {
+    try {
+        fs.renameSync(srcPath, destPath);
+    } catch (err) {
+        if (err.code !== 'EXDEV') throw err;
+        fs.copyFileSync(srcPath, destPath);
+        fs.unlinkSync(srcPath);
+    }
+};
+
 const pad2 = (n) => String(n).padStart(2, '0');
 const formatDuration = (d) => {
     if (!d) return '00:00:00';
@@ -39,7 +53,7 @@ const moveTo = (file, relDir) => {
     const dir = path.join(PUBLIC_ROOT, relDir);
     ensureDir(dir);
     const name = uniqueName(file.originalname);
-    fs.renameSync(file.path, path.join(dir, name));
+    moveFile(file.path, path.join(dir, name));
     return name;
 };
 
@@ -55,7 +69,7 @@ const handleScormUpload = (file) => {
     ensureDir(fullDir);
     const fileName = uniqueName(file.originalname);
     const zipPath = path.join(fullDir, fileName);
-    fs.renameSync(file.path, zipPath);
+    moveFile(file.path, zipPath);
     const folderName = fileName.replace(/\.[^.]+$/, '');
     const extractPath = path.join(fullDir, folderName);
     try {
