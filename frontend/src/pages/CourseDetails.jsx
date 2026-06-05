@@ -3,7 +3,6 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { getCourseDetails } from '@/api/course/courseApi';
 import { enrollCourse } from '@/api/userProgressApi';
 import { fmtDuration, safeArr } from '@/components/course/format';
-import PreviewModal from '@/components/course/PreviewModal';
 
 // admin-service serves uploaded images (banner/thumbnail) under /uploads. The
 // API returns RELATIVE paths (e.g. "uploads/course-thumbnail/x.png"), so they
@@ -31,7 +30,6 @@ export default function CourseDetails({ slug: slugProp } = {}) {
     const slug = slugProp || params.slug || searchParams.get('slug') || 'first';
     const [data, setData] = useState(null);
     const [tab, setTab] = useState('overview');
-    const [preview, setPreview] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     // Stays true after the user clicks Enroll/Start Learning. Component unmounts
@@ -173,7 +171,6 @@ export default function CourseDetails({ slug: slugProp } = {}) {
                         {/* Pricing card */}
                         <PricingCard
                             course={course}
-                            onPreview={() => setPreview(true)}
                             onEnroll={handleEnroll}
                             enrolling={enrolling}
                         />
@@ -215,15 +212,11 @@ export default function CourseDetails({ slug: slugProp } = {}) {
                     {tab === 'reviews' && <Reviews course={course} reviews={reviews} stars={stars} />}
                 </div>
             </section>
-
-            {preview && course.preview && (
-                <PreviewModal src={assetUrl(course.preview)} onClose={() => setPreview(false)} />
-            )}
         </>
     );
 }
 
-function PricingCard({ course, onPreview, onEnroll, enrolling }) {
+function PricingCard({ course, onEnroll, enrolling }) {
     // is_paid can come back as 0/1 (MySQL) or false/true; treat anything
     // falsy / explicit zero as "Free". Paid courses surface the price block
     // above the CTA; free courses show a "Free enrolment" line instead.
@@ -264,29 +257,13 @@ function PricingCard({ course, onPreview, onEnroll, enrolling }) {
     return (
         <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden sticky top-[80px]">
-                <button
-                    type="button"
-                    onClick={onPreview}
-                    className="block relative w-full aspect-video bg-bodybg group"
-                >
+                <div className="block relative w-full aspect-video bg-bodybg">
                     <img
                         src={assetUrl(course.banner || course.thumbnail)}
                         alt=""
-                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                        className="w-full h-full object-cover"
                     />
-                    {course.preview ? (
-                        <span className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-t from-black/60 via-black/30 to-transparent">
-                            <span className="w-16 h-16 rounded-full bg-white text-skin flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                                <i className="fa fa-play text-[20px] ml-1" />
-                            </span>
-                            <span className="mt-3 text-white text-[13px] font-medium tracking-wide">
-                                Watch preview
-                            </span>
-                        </span>
-                    ) : (
-                        <span className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-                    )}
-                </button>
+                </div>
                 <div className="p-6">
                     {/* Price block — only renders for paid courses. Free
                         courses skip this entirely so the CTA sits at the top
