@@ -267,15 +267,17 @@ async function enqueueCertificateIssuedEmail({ certificate }) {
             });
         })();
 
-        const verifyUrl = certificate.identifier
-            ? `${env.appUrl}/api/public/certificate/${certificate.identifier}`
-            : '';
+        // Point the "View Certificate" CTA at the LMS login page rather than
+        // the raw public verify URL: students view their certificate from
+        // inside the app (My Certificates) after authenticating. The login URL
+        // is the reliably-reachable, branded entry point.
+        const viewUrl = env.mail.lmsLoginUrl;
 
         const { subject, html } = certificateIssued({
             studentName: userRow.name,
             courseTitle: course?.title,
             issuedDate,
-            verifyUrl,
+            verifyUrl: viewUrl,
             loginUrl: env.mail.lmsLoginUrl,
         });
         await enqueueEmailJob({

@@ -199,14 +199,14 @@ const certificateIssued = ({
         ? `<p style="margin:0 0 16px 0;color:#7a8189;font-size:13px;">Issued on ${safeIssued}</p>`
         : '';
 
-    // Two CTAs: primary "View Certificate" lands on the public verify URL
-    // (no login required — anyone with the link can confirm authenticity);
-    // secondary "Open LMS" sends the student back to their dashboard.
+    // Primary CTA "Log in to View Certificate" sends the student to the LMS
+    // login page; they view/download the certificate from My Certificates after
+    // authenticating. (Caller passes the login URL as verifyUrl.)
     const verifyButton = safeVerify
         ? `
             <p style="margin:0 0 12px 0;">
                 <a href="${safeVerify}" style="display:inline-block;background:#177385;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:6px;font-weight:600;">
-                    View Certificate
+                    Log in to View Certificate
                 </a>
             </p>
         `
@@ -238,9 +238,8 @@ const certificateIssued = ({
         <p style="margin:0 0 12px 0;font-size:16px;font-weight:600;color:#177385;">${safeCourse}</p>
         ${issuedLine}
         <p style="margin:0 0 16px 0;">
-            Your official certificate is ready. You can view, share, or
-            download it from the link below — it includes a QR code that lets
-            anyone verify its authenticity.
+            Your official certificate is ready. Log in to the LMS to view,
+            share, or download it from your certificates page.
         </p>
         ${verifyButton}
         ${verifyFallback}
