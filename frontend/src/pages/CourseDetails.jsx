@@ -5,6 +5,17 @@ import { enrollCourse } from '@/api/userProgressApi';
 import { fmtDuration, safeArr } from '@/components/course/format';
 import PreviewModal from '@/components/course/PreviewModal';
 
+// admin-service serves uploaded images (banner/thumbnail) under /uploads. The
+// API returns RELATIVE paths (e.g. "uploads/course-thumbnail/x.png"), so they
+// must be prefixed with the admin base or the browser resolves them against the
+// current page URL and 404s. Mirrors Programspage.tsx's ADMIN_BASE.
+const ADMIN_BASE = import.meta.env.VITE_ADMIN_API_URL || 'http://localhost:4000';
+const assetUrl = (raw) => {
+    if (!raw) return '';
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    return `${ADMIN_BASE}/${String(raw).replace(/^\/+/, '')}`;
+};
+
 const TABS = [
     { key: 'overview', label: 'Overview' },
     { key: 'curriculum', label: 'Curriculum' },
@@ -147,7 +158,7 @@ export default function CourseDetails({ slug: slugProp } = {}) {
                             {course.creator && (
                                 <div className="flex items-center gap-3 pt-1">
                                     <img
-                                        src={course.creator.photo}
+                                        src={assetUrl(course.creator.photo)}
                                         alt=""
                                         className="w-11 h-11 rounded-full object-cover ring-2 ring-white shadow-sm"
                                     />
@@ -206,7 +217,7 @@ export default function CourseDetails({ slug: slugProp } = {}) {
             </section>
 
             {preview && course.preview && (
-                <PreviewModal src={course.preview} onClose={() => setPreview(false)} />
+                <PreviewModal src={assetUrl(course.preview)} onClose={() => setPreview(false)} />
             )}
         </>
     );
@@ -259,7 +270,7 @@ function PricingCard({ course, onPreview, onEnroll, enrolling }) {
                     className="block relative w-full aspect-video bg-bodybg group"
                 >
                     <img
-                        src={course.banner || course.thumbnail}
+                        src={assetUrl(course.banner || course.thumbnail)}
                         alt=""
                         className="w-full h-full object-cover transition-transform group-hover:scale-105"
                     />
@@ -524,7 +535,7 @@ function Instructor({ instructor }) {
             <div className="mt-5 bg-white border border-border rounded-2xl overflow-hidden">
                 <div className="bg-gradient-to-r from-lightgreen/40 to-white p-6 sm:p-8 flex flex-col sm:flex-row gap-6 items-center sm:items-start">
                     <img
-                        src={instructor.photo}
+                        src={assetUrl(instructor.photo)}
                         alt={instructor.name || ''}
                         className="w-28 h-28 rounded-full object-cover flex-shrink-0 ring-4 ring-white shadow-md"
                     />
@@ -654,7 +665,7 @@ function Reviews({ course, reviews, stars }) {
                     <div key={r.id} className="bg-white border border-border rounded-xl p-5 flex gap-4 hover:shadow-sm transition-shadow">
                         {r.user?.photo ? (
                             <img
-                                src={r.user.photo}
+                                src={assetUrl(r.user.photo)}
                                 alt=""
                                 className="w-12 h-12 rounded-full object-cover flex-shrink-0 ring-2 ring-bodybg"
                             />
