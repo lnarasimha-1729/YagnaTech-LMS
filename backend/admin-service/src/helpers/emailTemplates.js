@@ -75,7 +75,10 @@ const batchAddedToStudent = ({ studentName, batchName, loginUrl }) => {
 // course access, and points them back at the LMS login. Mirrors the visual
 // frame of batchAddedToStudent so the two transactional emails feel like
 // they come from the same product.
-const preAssessmentRegistered = ({ studentName, programName, courseName, loginUrl }) => {
+const preAssessmentRegistered = ({
+    studentName, programName, courseName, loginUrl,
+    questionCount, totalMarks, durationMinutes,
+}) => {
     const heading = 'Pre-Assessment Registration Confirmed';
     const subject = 'You’re registered for the Pre-Assessment';
     const safeStudent = escape(studentName || 'Student');
@@ -85,6 +88,21 @@ const preAssessmentRegistered = ({ studentName, programName, courseName, loginUr
     const safeUrl = escape(loginUrl || '');
     const programLine = safeCourse
         ? `<p style="margin:0 0 16px 0;">Course: <strong>${safeCourse}</strong></p>`
+        : '';
+
+    // Assessment details block — only the rows we actually have. Shown just
+    // above the tips so the student knows what to expect before starting.
+    const detailRows = [
+        Number.isFinite(Number(questionCount)) && Number(questionCount) > 0
+            ? `<li style="margin:0 0 6px 0;">Questions: <strong>${escape(String(questionCount))}</strong></li>` : '',
+        Number.isFinite(Number(totalMarks)) && Number(totalMarks) > 0
+            ? `<li style="margin:0 0 6px 0;">Total marks: <strong>${escape(String(totalMarks))}</strong></li>` : '',
+        Number.isFinite(Number(durationMinutes)) && Number(durationMinutes) > 0
+            ? `<li style="margin:0 0 6px 0;">Duration: <strong>${escape(String(durationMinutes))} minutes</strong></li>` : '',
+    ].filter(Boolean).join('');
+    const detailsBlock = detailRows
+        ? `<p style="margin:0 0 8px 0;font-weight:600;">Assessment details:</p>
+           <ul style="margin:0 0 18px 20px;padding:0;">${detailRows}</ul>`
         : '';
     const bodyHtml = `
         <p style="margin:0 0 16px 0;">Dear ${safeStudent},</p>
@@ -97,6 +115,7 @@ const preAssessmentRegistered = ({ studentName, programName, courseName, loginUr
             unlock your course content. You won’t be able to access the
             full programme until the assessment is finished.
         </p>
+        ${detailsBlock}
         <p style="margin:0 0 12px 0;">A few tips before you begin:</p>
         <ul style="margin:0 0 18px 20px;padding:0;">
             <li style="margin:0 0 6px 0;">Find a quiet spot with a stable internet connection.</li>

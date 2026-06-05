@@ -10,6 +10,34 @@ import {
 } from "../services/preAssessmentRegistration.service.js";
 import { PROOF_PUBLIC_PATH } from "../middlewares/uploadProof.js";
 import { enqueueEmail } from "../helpers/adminEmailClient.js";
+import Assessment from "../db/models/Assessment.js";
+import QuestionSet from "../db/models/QuestionSet.js";
+
+// Resolve the pre-assessment the student will take, to surface its stats in the
+// confirmation email. Prefers an assessment scoped to the student's college
+// (clgId), else falls back to the first `pre` — same selection rule as
+// getActivePreAssessment. Best-effort: returns null on any miss so the email
+// still sends without the stats block.
+async function fetchPreAssessmentStats(clgId) {
+  try {
+    const pres = await Assessment.findAll({ where: { type: "pre" } });
+    if (!pres.length) return null;
+    const matches = (a) =>
+      clgId && Array.isArray(a.clgIds) && a.clgIds.map(String).includes(String(clgId));
+    const pre = pres.find(matches) || pres[0];
+    const qs = await QuestionSet.findByPk(pre.setId);
+    const questionCount = qs && Array.isArray(qs.questions) ? qs.questions.length : 0;
+    return {
+      questionCount,
+      // No per-question marks in the schema — 1 mark per question.
+      totalMarks: questionCount,
+      durationMinutes: pre.timer || null,
+    };
+  } catch (e) {
+    console.warn("[preAssessmentRegistration] assessment stats lookup failed:", e.message);
+    return null;
+  }
+}
 
 // Centralised JSON response shape — keeps clients consistent with the rest of
 // the assessment service (`{ message, data?, errors? }`).
@@ -104,6 +132,12 @@ export async function submitRegistration(req, res) {
     // awaited: the registration already persisted, and SMTP latency must
     // not block the 201 response. enqueueEmail() swallows its own errors,
     // so a failed dispatch is logged but doesn't surface to the user.
+    // Assessment stats for the email (questions / marks / duration). Best-effort
+    // — resolved from the student's college when the token carries it.
+    const stats = await fetchPreAssessmentStats(
+      req.user?.clgId || req.user?.collegeId || req.user?.college_id || null
+    );
+
     enqueueEmail({
       template: "preAssessmentRegistered",
       to: email,
@@ -116,6 +150,11 @@ export async function submitRegistration(req, res) {
         // course name for the email (it falls back to programName if the
         // lookup yields nothing).
         programId: selectedProgramId,
+        // Assessment details shown above the "tips" block. Omitted gracefully
+        // by the template when the lookup found no assessment.
+        questionCount: stats?.questionCount ?? null,
+        totalMarks: stats?.totalMarks ?? null,
+        durationMinutes: stats?.durationMinutes ?? null,
         // adminEmailClient leaves the loginUrl to the admin-service template
         // default (env.mail.lmsLoginUrl), so the link stays consistent with
         // the batch-added email even though they originate in different
