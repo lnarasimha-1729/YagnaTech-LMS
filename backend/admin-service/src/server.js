@@ -426,11 +426,13 @@ app.use('/api/admin', auth, forumRoutes.admin);
 app.use('/api/public', forumRoutes.public);
 
 // Root-only endpoints — global management a single college's admin must NOT
-// reach. rootOnly requires role==='root'.
-//   adminRoutes   → manage other admins (/admins CRUD) + global /dashboard
-//   collegeRoutes → create/update/delete colleges + revoke/grant access
-app.use('/api/admin', rootOnly, adminRoutes);
-app.use('/api/admin', rootOnly, collegeRoutes);
+// reach (manage other admins, manage colleges). rootOnly is applied PER-ROUTE
+// inside these routers (not at the mount), because mounting rootOnly on the
+// shared '/api/admin' prefix would 403 the entire namespace for college admins
+// before Express could fall through to the adminOnly routers below (e.g.
+// college-dashboard). Here we only decode the JWT; the routers self-gate.
+app.use('/api/admin', auth, adminRoutes);
+app.use('/api/admin', auth, collegeRoutes);
 
 // Protected admin endpoints — adminOnly enforces JWT + role (admin OR root).
 // College-scoped surfaces a college admin legitimately uses; the service layer
