@@ -26,7 +26,15 @@ const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex'
 // caller (requestPasswordReset) must respond with the same generic message
 // regardless of whether email actually went out.
 async function enqueueResetEmail({ to, name, resetLink }) {
-  const base = process.env.ADMIN_SERVICE_URL || 'http://localhost:4000';
+  // Default to the Docker Compose service name (admin-service listens on 8007
+  // inside the network), NOT localhost — under Docker, localhost is THIS
+  // container, so an unset ADMIN_SERVICE_URL would silently send the enqueue
+  // into the void. Warn loudly when falling back so misconfig is visible.
+  let base = process.env.ADMIN_SERVICE_URL;
+  if (!base) {
+    base = 'http://admin-service:8007';
+    console.warn(`[auth] ADMIN_SERVICE_URL unset — defaulting to ${base}`);
+  }
   const secret = process.env.INTERNAL_API_SECRET;
   if (!secret) {
     console.warn('[auth] INTERNAL_API_SECRET unset — skipping reset email enqueue');

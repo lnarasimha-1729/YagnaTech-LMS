@@ -11,9 +11,20 @@ const REQUEST_TIMEOUT_MS = 5_000;
 // Returns a promise that resolves regardless of outcome — callers should not
 // await this from within a critical path. Logs are best-effort.
 export async function enqueueEmail({ template, data, to, userId, batchId }) {
-    const adminUrl = (process.env.ADMIN_SERVICE_URL || '').replace(/\/+$/, '');
+    // Default to the Docker Compose service name (admin-service listens on 8007
+    // internally), NOT localhost — under Docker, localhost is THIS container, so
+    // an unset ADMIN_SERVICE_URL would silently drop every email. Warn on
+    // fallback so misconfiguration surfaces in logs instead of vanishing.
+    let adminUrl = (process.env.ADMIN_SERVICE_URL || '').replace(/\/+$/, '');
+    if (!adminUrl) {
+        adminUrl = 'http://admin-service:8007';
+        console.warn(`[admin-email] ADMIN_SERVICE_URL unset — defaulting to ${adminUrl}`);
+    }
     const secret = process.env.INTERNAL_API_SECRET || '';
-    if (!adminUrl || !secret) return;
+    if (!secret) {
+        console.warn('[admin-email] INTERNAL_API_SECRET unset — skipping email enqueue');
+        return;
+    }
     if (!template || !to) return;
 
     const controller = new AbortController();
