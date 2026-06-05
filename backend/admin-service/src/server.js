@@ -74,6 +74,36 @@ app.post('/api/internal/email/enqueue', express.json({ limit: '1mb' }), async (r
             loginUrl: env.mail.lmsLoginUrl,
             ...(data || {}),
         };
+        // For the pre-assessment confirmation, resolve the actual course name
+        // from the selected program (programs/courses live here in lms_admin,
+        // not in assessment-service). A program can bundle multiple courses —
+        // join their titles. Best-effort: on any miss, the template falls back
+        // to programName.
+        if (template === 'preAssessmentRegistered' && enriched.programId) {
+            try {
+                const { Program, Course } = require('./models');
+                const program = await Program.findByPk(Number(enriched.programId), {
+                    attributes: ['id', 'course_id', 'course_ids'],
+                    raw: true,
+                });
+                if (program) {
+                    let courseIds = Array.isArray(program.course_ids) ? program.course_ids : [];
+                    if (!courseIds.length && program.course_id) courseIds = [program.course_id];
+                    courseIds = courseIds.map(Number).filter(Boolean);
+                    if (courseIds.length) {
+                        const courses = await Course.findAll({
+                            where: { id: courseIds },
+                            attributes: ['title'],
+                            raw: true,
+                        });
+                        const names = courses.map((c) => c.title).filter(Boolean);
+                        if (names.length) enriched.courseName = names.join(', ');
+                    }
+                }
+            } catch (e) {
+                console.warn('[internal/email/enqueue] course-name lookup failed:', e.message);
+            }
+        }
         const { subject, html } = builder(enriched);
         await enqueueEmail({ to, subject, html, userId, batchId });
         return res.status(202).json({ queued: true });

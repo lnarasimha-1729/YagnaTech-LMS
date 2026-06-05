@@ -111,6 +111,11 @@ export async function submitRegistration(req, res) {
       data: {
         studentName: fullName,
         programName: selectedProgram,
+        // Programs/Courses live in admin-service's DB, not here. Pass the
+        // program id so the admin-service enqueue endpoint can resolve the
+        // course name for the email (it falls back to programName if the
+        // lookup yields nothing).
+        programId: selectedProgramId,
         // adminEmailClient leaves the loginUrl to the admin-service template
         // default (env.mail.lmsLoginUrl), so the link stays consistent with
         // the batch-added email even though they originate in different

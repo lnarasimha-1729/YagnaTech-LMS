@@ -75,14 +75,16 @@ const batchAddedToStudent = ({ studentName, batchName, loginUrl }) => {
 // course access, and points them back at the LMS login. Mirrors the visual
 // frame of batchAddedToStudent so the two transactional emails feel like
 // they come from the same product.
-const preAssessmentRegistered = ({ studentName, programName, loginUrl }) => {
+const preAssessmentRegistered = ({ studentName, programName, courseName, loginUrl }) => {
     const heading = 'Pre-Assessment Registration Confirmed';
     const subject = 'You’re registered for the Pre-Assessment';
     const safeStudent = escape(studentName || 'Student');
-    const safeProgram = escape(programName || '');
+    // Prefer the resolved course name; fall back to the program name when the
+    // course lookup yielded nothing (e.g. program has no courses attached).
+    const safeCourse = escape(courseName || programName || '');
     const safeUrl = escape(loginUrl || '');
-    const programLine = safeProgram
-        ? `<p style="margin:0 0 16px 0;">Program: <strong>${safeProgram}</strong></p>`
+    const programLine = safeCourse
+        ? `<p style="margin:0 0 16px 0;">Course: <strong>${safeCourse}</strong></p>`
         : '';
     const bodyHtml = `
         <p style="margin:0 0 16px 0;">Dear ${safeStudent},</p>
