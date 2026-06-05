@@ -29,10 +29,12 @@ async function fetchPreAssessmentStats(clgId) {
     const questionCount = qs && Array.isArray(qs.questions) ? qs.questions.length : 0;
     // Assessment.timer is stored in SECONDS — convert to minutes for the email.
     const durationMinutes = pre.timer ? Math.round(Number(pre.timer) / 60) : null;
+    // Assessment.score is the configured TOTAL marks for the assessment (admin
+    // sets it on the form, defaults to 100) — not a per-question count.
+    const totalMarks = Number.isFinite(Number(pre.score)) ? Number(pre.score) : null;
     return {
       questionCount,
-      // No per-question marks in the schema — 1 mark per question.
-      totalMarks: questionCount,
+      totalMarks,
       durationMinutes,
     };
   } catch (e) {
