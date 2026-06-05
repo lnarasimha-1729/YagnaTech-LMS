@@ -9,6 +9,7 @@ import {
     listCourses, deleteCourse, setCourseStatus, duplicateCourse, approveCourse,
 } from '../../api/course';
 import { getStoredUser } from '../../api/auth';
+import { listBatchesByColleges } from '../../api/batch';
 import { useCollege } from '@/hooks/useCollege';
 
 // VITE_ADMIN_API_URL points at admin-service (port 4000) — fine for asset
@@ -71,6 +72,44 @@ function CollegeChips({ clgIds, nameById }) {
     );
 }
 
+// Renders the batches assigned to a course as chips. Resolves batch id -> name
+// via the batches map; falls back to the raw id while the list is still loading
+// or the batch was deleted. Mirrors CollegeChips.
+function BatchChips({ batchIds, nameById }) {
+    const ids = Array.isArray(batchIds) ? batchIds.filter(Boolean) : [];
+    if (ids.length === 0) {
+        return <span className="text-[11px] text-muted">No batches assigned</span>;
+    }
+    const visible = ids.slice(0, MAX_VISIBLE_COLLEGES);
+    const hiddenCount = ids.length - visible.length;
+    const hiddenLabel = ids
+        .slice(MAX_VISIBLE_COLLEGES)
+        .map((id) => nameById[id] || id)
+        .join(', ');
+
+    return (
+        <div className="flex flex-wrap items-center gap-1">
+            {visible.map((id) => (
+                <span
+                    key={id}
+                    className="inline-flex items-center px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[11px] max-w-[120px] truncate"
+                    title={nameById[id] || id}
+                >
+                    {nameById[id] || id}
+                </span>
+            ))}
+            {hiddenCount > 0 && (
+                <span
+                    className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-600 text-[11px]"
+                    title={hiddenLabel}
+                >
+                    +{hiddenCount} more
+                </span>
+            )}
+        </div>
+    );
+}
+
 export default function CourseIndex() {
     const [params, setParams] = useSearchParams();
     // Instructors can't create courses — hide the "Add New Course" button.
@@ -85,6 +124,10 @@ export default function CourseIndex() {
         (colleges || []).forEach((c) => { map[c.clgId] = c.clgName; });
         return map;
     }, [colleges]);
+    // batch id -> name, for the Batches column. Fetched across all colleges the
+    // loaded courses are assigned to (root admin has no college_id, so the
+    // non-gated /batches/by-colleges endpoint is used).
+    const [batchNameById, setBatchNameById] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [confirm, setConfirm] = useState(null);
@@ -110,6 +153,26 @@ export default function CourseIndex() {
     };
 
     useEffect(() => { load(); /* eslint-disable-next-line */ }, [params]);
+
+    // Once courses load, fetch batch names for every college those courses are
+    // assigned to, so the Batches column can show names instead of raw ids.
+    useEffect(() => {
+        const courses = data?.courses?.data || [];
+        const clgIds = Array.from(
+            new Set(courses.flatMap((c) => (Array.isArray(c.clg_ids) ? c.clg_ids : [])).filter(Boolean))
+        );
+        if (clgIds.length === 0) { setBatchNameById({}); return; }
+        let alive = true;
+        listBatchesByColleges(clgIds)
+            .then((res) => {
+                if (!alive) return;
+                const map = {};
+                (res?.batches || []).forEach((b) => { map[b.id] = b.name; });
+                setBatchNameById(map);
+            })
+            .catch(() => { if (alive) setBatchNameById({}); });
+        return () => { alive = false; };
+    }, [data]);
 
     const applyFilters = (next) => {
         const cleaned = {};
@@ -301,6 +364,7 @@ export default function CourseIndex() {
                                         <th scope="col">#</th>
                                         <th scope="col">Title</th>
                                         <th scope="col">Colleges</th>
+                                        <th scope="col">Batches</th>
                                         <th scope="col">Lesson & Section</th>
                                         <th scope="col">Enrolled Student</th>
                                         <th scope="col">Status</th>
@@ -331,6 +395,12 @@ export default function CourseIndex() {
                                                 <CollegeChips
                                                     clgIds={Array.isArray(c.clg_ids) ? c.clg_ids : []}
                                                     nameById={collegeNameById}
+                                                />
+                                            </td>
+                                            <td>
+                                                <BatchChips
+                                                    batchIds={Array.isArray(c.batch_ids) ? c.batch_ids : []}
+                                                    nameById={batchNameById}
                                                 />
                                             </td>
                                             <td>
