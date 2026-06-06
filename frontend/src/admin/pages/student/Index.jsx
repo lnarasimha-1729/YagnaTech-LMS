@@ -26,6 +26,64 @@ const avatarUrl = (row) => row.photo
     ? `${API}/${row.photo}`
     : `https://ui-avatars.com/api/?name=${encodeURIComponent(row.name || row.email || 'S')}&background=169f48&color=fff`;
 
+// ---- Export (PDF + CSV) ----
+// Single source of truth for the exported columns. Each returns a PLAIN STRING
+// (no JSX/badges/chips), used by both the clean print table and the CSV. This
+// keeps the export readable instead of cramming the styled 13-column screen
+// table onto a page.
+const fmtAssessment = (a) =>
+    a ? `${a.passed ? 'Pass' : 'Fail'} · Score ${a.score} · ${fmtDuration(a.duration_seconds)}` : 'Not taken';
+const fmtCert = (c) => {
+    if (!c || !c.issued) return 'Not issued';
+    const date = c.latest_issued_at ? new Date(c.latest_issued_at).toLocaleDateString() : '';
+    return `Issued${c.count > 1 ? ` ×${c.count}` : ''}${date ? ` (${date})` : ''}`;
+};
+const fmtCourseStatus = (courses) => {
+    const rows = Array.isArray(courses) ? courses : [];
+    if (!rows.length) return 'No courses';
+    return rows.map((c) => `${c.title}: ${Number(c.progress_pct) || 0}%`).join('; ');
+};
+const REQUEST_STATUS_LABELS = {
+    sent: 'Pending', accepted: 'Accepted', rejected: 'Rejected', cancelled: 'Cancelled',
+};
+
+const STUDENT_EXPORT_COLUMNS = [
+    { header: 'Name', value: (s) => s.name || '' },
+    { header: 'Email', value: (s) => s.email || '' },
+    { header: 'Phone', value: (s) => s.phone || '' },
+    { header: 'College', value: (s) => s.college || 'Not selected' },
+    { header: 'Batch', value: (s) => s.batch || '' },
+    { header: 'Enrolled Courses', value: (s) => (Array.isArray(s.enrolled_courses) && s.enrolled_courses.length ? s.enrolled_courses.map((c) => c.title).join('; ') : 'None') },
+    { header: 'Program Interested', value: (s) => s.program_interested || 'Not selected' },
+    { header: 'Pre-Assessment', value: (s) => fmtAssessment(s.pre_assessment) },
+    { header: 'Post-Assessment', value: (s) => fmtAssessment(s.post_assessment) },
+    { header: 'Course Status', value: (s) => fmtCourseStatus(s.enrolled_courses) },
+    { header: 'Certificate Status', value: (s) => fmtCert(s.certificate) },
+    { header: 'Program Request', value: (s) => s.program_request || '' },
+    { header: 'Request Status', value: (s) => REQUEST_STATUS_LABELS[s.program_request_status] || (s.program_request_status || 'No request') },
+];
+
+// Build + download a CSV of all students. Quotes every field and escapes
+// embedded quotes so commas/newlines in values don't break columns.
+const downloadStudentsCsv = (students) => {
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const header = ['#', ...STUDENT_EXPORT_COLUMNS.map((c) => c.header)];
+    const lines = [header.map(esc).join(',')];
+    students.forEach((s, i) => {
+        lines.push([esc(i + 1), ...STUDENT_EXPORT_COLUMNS.map((c) => esc(c.value(s)))].join(','));
+    });
+    // BOM so Excel detects UTF-8 (names with accents etc. render correctly).
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `students-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
 export default function StudentIndex() {
     const [params, setParams] = useSearchParams();
     const [data, setData] = useState(null);
@@ -97,6 +155,11 @@ export default function StudentIndex() {
     };
 
     const handlePrint = () => window.print();
+    const handleCsv = () => {
+        const students = data?.students || [];
+        if (!students.length) { toast.info('No students to export'); return; }
+        downloadStudentsCsv(students);
+    };
 
     if (loading && !data) {
         return (
@@ -149,7 +212,7 @@ export default function StudentIndex() {
                 <div className="ol-card-body min-w-0">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3 mt-3">
                         <div className="w-full md:w-auto">
-                            <ExportDropdown onPdf={handlePrint} onPrint={handlePrint} />
+                            <ExportDropdown onPdf={handlePrint} onPrint={handlePrint} onCsv={handleCsv} />
                         </div>
                         {/* Bulk Request + Batch + College search + Search user grouped on the right. */}
                         <div className="flex flex-col md:flex-row md:items-center gap-3">
@@ -241,8 +304,8 @@ export default function StudentIndex() {
                                 wide table scrolls here instead of widening
                                 the page. w-full + max-w-full + min-w-0 make
                                 the box clip rather than grow to fit content. */}
-                            <div className="w-full max-w-full min-w-0 overflow-x-auto e-table-scroll-y print-area">
-                                <table className="e-table print-compact">
+                            <div className="w-full max-w-full min-w-0 overflow-x-auto e-table-scroll-y print:hidden">
+                                <table className="e-table">
                                     <thead>
                                         <tr>
                                             <th scope="col">#</th>
@@ -365,6 +428,34 @@ export default function StudentIndex() {
                                                         onDelete={() => setConfirm({ id: s.id, name: s.name })}
                                                     />
                                                 </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Clean print-only table — plain text, no avatars/
+                                badges/chips — so the PDF reads well instead of
+                                cramming the styled screen table. Hidden on screen
+                                (hidden), shown only in print (print:block), and
+                                the @media print rules reveal print-area. */}
+                            <div className="hidden print:block print-area">
+                                <table className="e-table print-compact">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            {STUDENT_EXPORT_COLUMNS.map((c) => (
+                                                <th key={c.header}>{c.header}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {rows.map((s, i) => (
+                                            <tr key={s.id}>
+                                                <td>{i + 1}</td>
+                                                {STUDENT_EXPORT_COLUMNS.map((c) => (
+                                                    <td key={c.header}>{c.value(s)}</td>
+                                                ))}
                                             </tr>
                                         ))}
                                     </tbody>
@@ -1088,7 +1179,7 @@ function StudentOptions({ student, onDelete }) {
     );
 }
 
-function ExportDropdown({ onPdf, onPrint }) {
+function ExportDropdown({ onPdf, onPrint, onCsv }) {
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
 
@@ -1135,6 +1226,17 @@ function ExportDropdown({ onPdf, onPrint }) {
                             <i className="fi-rr-print" /> Print
                         </button>
                     </li>
+                    {onCsv && (
+                        <li>
+                            <button
+                                type="button"
+                                className="w-full text-left flex items-center gap-2 px-3 py-2 text-dark hover:bg-gray-50"
+                                onClick={() => { setOpen(false); onCsv(); }}
+                            >
+                                <i className="fi-rr-file-spreadsheet" /> CSV (Excel)
+                            </button>
+                        </li>
+                    )}
                 </ul>
             )}
         </div>
