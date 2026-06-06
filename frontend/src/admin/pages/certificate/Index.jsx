@@ -88,7 +88,32 @@ export default function CertificateIndex() {
         }
     };
 
-    const handlePrint = () => window.print();
+    // Export/print every certificate, not just the current page. Fetch all
+    // pages, render them, print, then restore.
+    const [printRows, setPrintRows] = useState(null);
+    const [printing, setPrinting] = useState(false);
+    const handlePrint = async () => {
+        if (printing) return;
+        setPrinting(true);
+        try {
+            const first = await listCertificates({ ...query, page: 1 });
+            const lastPage = first?.certificates?.last_page || 1;
+            let all = first?.certificates?.data || [];
+            for (let p = 2; p <= lastPage; p++) {
+                const res = await listCertificates({ ...query, page: p });
+                all = all.concat(res?.certificates?.data || []);
+            }
+            setPrintRows(all);
+            await new Promise((r) => setTimeout(r, 100));
+            window.print();
+        } catch (e) {
+            console.error('Export failed:', e);
+            toast.error('Could not prepare the export. Please try again.');
+        } finally {
+            setPrintRows(null);
+            setPrinting(false);
+        }
+    };
 
     if (loading && !data) {
         return (
@@ -111,7 +136,7 @@ export default function CertificateIndex() {
         );
     }
 
-    const rows = data.certificates.data;
+    const rows = printRows ?? data.certificates.data;
     const isEmpty = rows.length === 0;
 
     return (
@@ -183,7 +208,7 @@ export default function CertificateIndex() {
                                     <tbody>
                                         {rows.map((c, i) => (
                                             <tr key={c.id}>
-                                                <td>{(data.certificates.current_page - 1) * data.certificates.per_page + i + 1}</td>
+                                                <td>{printRows ? i + 1 : (data.certificates.current_page - 1) * data.certificates.per_page + i + 1}</td>
                                                 <td className="min-w-[180px]">
                                                     <h4 className="text-[14px] font-semibold text-dark m-0">{c.title}</h4>
                                                     {c.description && (

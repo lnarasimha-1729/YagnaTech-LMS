@@ -63,7 +63,26 @@ export default function CollegeIndex() {
         }
     };
 
-    const handlePrint = () => window.print();
+    // Export/print every college, not just the current page. The list honors
+    // per_page, so pull a large page, render it, print, then restore.
+    const [printRows, setPrintRows] = useState(null);
+    const [printing, setPrinting] = useState(false);
+    const handlePrint = async () => {
+        if (printing) return;
+        setPrinting(true);
+        try {
+            const res = await listColleges({ ...query, page: 1, per_page: 100000 });
+            setPrintRows(res?.colleges || []);
+            await new Promise((r) => setTimeout(r, 100));
+            window.print();
+        } catch (e) {
+            console.error('Export failed:', e);
+            toast.error('Could not prepare the export. Please try again.');
+        } finally {
+            setPrintRows(null);
+            setPrinting(false);
+        }
+    };
 
     if (loading && !data) {
         return (
@@ -86,7 +105,7 @@ export default function CollegeIndex() {
         );
     }
 
-    const rows = data.colleges || [];
+    const rows = printRows ?? (data.colleges || []);
     const isEmpty = rows.length === 0;
 
     return (

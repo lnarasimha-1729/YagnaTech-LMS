@@ -195,8 +195,36 @@ export default function CourseIndex() {
         setParams(next);
     };
 
-    const handlePrint = () => window.print();
-    const handleExportPdf = () => window.print();
+    // Export/print should include EVERY course, not just the current page.
+    // The backend caps each page at 20, so fetch all pages, stash them in
+    // printRows (rendered in place of the paginated rows), print, then restore.
+    const [printRows, setPrintRows] = useState(null);
+    const [printing, setPrinting] = useState(false);
+
+    const handlePrint = async () => {
+        if (printing) return;
+        setPrinting(true);
+        try {
+            const first = await listCourses({ ...query, page: 1 });
+            const lastPage = first?.courses?.last_page || 1;
+            let all = first?.courses?.data || [];
+            for (let p = 2; p <= lastPage; p++) {
+                const res = await listCourses({ ...query, page: p });
+                all = all.concat(res?.courses?.data || []);
+            }
+            setPrintRows(all);
+            // Wait for React to render the full set before opening the dialog.
+            await new Promise((r) => setTimeout(r, 100));
+            window.print();
+        } catch (e) {
+            console.error('Export failed:', e);
+            toast.error('Could not prepare the export. Please try again.');
+        } finally {
+            setPrintRows(null);
+            setPrinting(false);
+        }
+    };
+    const handleExportPdf = handlePrint;
 
     const handleDelete = async (id) => {
         try { await deleteCourse(id); toast.success('Course deleted successfully'); setConfirm(null); load(); }
@@ -274,7 +302,9 @@ export default function CourseIndex() {
     // courses with at least one matching batch.
     const batchTerm = batchSearch.trim().toLowerCase();
     const collegeTerm = collegeSearch.trim().toLowerCase();
-    const allRows = data.courses.data;
+    // While exporting, render the full fetched set (printRows) instead of just
+    // the current paginated page, so the PDF contains every course.
+    const allRows = printRows ?? data.courses.data;
     const matchesCollege = (c) => {
         if (!collegeTerm) return true;
         const ids = Array.isArray(c.clg_ids) ? c.clg_ids : [];
@@ -455,7 +485,7 @@ export default function CourseIndex() {
                                     )}
                                     {rows.map((c, i) => (
                                         <tr key={c.id}>
-                                            <td>{(data.courses.current_page - 1) * data.courses.per_page + i + 1}</td>
+                                            <td>{printRows ? i + 1 : (data.courses.current_page - 1) * data.courses.per_page + i + 1}</td>
                                             <td className="min-w-[220px]">
                                                 <div>
                                                     <h4 className="text-[14px] font-semibold text-dark m-0">

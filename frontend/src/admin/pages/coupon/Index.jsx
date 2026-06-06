@@ -94,7 +94,32 @@ export default function CouponIndex() {
         }
     };
 
-    const handlePrint = () => window.print();
+    // Export/print every coupon, not just the current page (backend caps each
+    // page). Fetch all pages, render them, print, then restore.
+    const [printRows, setPrintRows] = useState(null);
+    const [printing, setPrinting] = useState(false);
+    const handlePrint = async () => {
+        if (printing) return;
+        setPrinting(true);
+        try {
+            const first = await listCoupons({ ...query, page: 1 });
+            const lastPage = first?.coupons?.last_page || 1;
+            let all = first?.coupons?.data || [];
+            for (let p = 2; p <= lastPage; p++) {
+                const res = await listCoupons({ ...query, page: p });
+                all = all.concat(res?.coupons?.data || []);
+            }
+            setPrintRows(all);
+            await new Promise((r) => setTimeout(r, 100));
+            window.print();
+        } catch (e) {
+            console.error('Export failed:', e);
+            toast.error('Could not prepare the export. Please try again.');
+        } finally {
+            setPrintRows(null);
+            setPrinting(false);
+        }
+    };
 
     if (loading && !data) {
         return (
@@ -117,7 +142,7 @@ export default function CouponIndex() {
         );
     }
 
-    const rows = data.coupons.data;
+    const rows = printRows ?? data.coupons.data;
     const isEmpty = rows.length === 0;
 
     return (
@@ -189,7 +214,7 @@ export default function CouponIndex() {
                                     <tbody>
                                         {rows.map((c, i) => (
                                             <tr key={c.id}>
-                                                <td>{(data.coupons.current_page - 1) * data.coupons.per_page + i + 1}</td>
+                                                <td>{printRows ? i + 1 : (data.coupons.current_page - 1) * data.coupons.per_page + i + 1}</td>
                                                 <td className="min-w-[180px]">
                                                     <h4 className="text-[14px] font-semibold text-dark m-0">{c.code}</h4>
                                                 </td>
