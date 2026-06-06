@@ -128,6 +128,9 @@ export default function CourseIndex() {
     // loaded courses are assigned to (root admin has no college_id, so the
     // non-gated /batches/by-colleges endpoint is used).
     const [batchNameById, setBatchNameById] = useState({});
+    // Client-side filter for the Batches column — matches a course's assigned
+    // batch names (case-insensitive substring). Empty = show all.
+    const [batchSearch, setBatchSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [confirm, setConfirm] = useState(null);
@@ -265,7 +268,18 @@ export default function CourseIndex() {
             ]),
     ];
 
-    const rows = data.courses.data;
+    // Filter rows client-side by batch name when the Batches search box is used.
+    // Resolves each course's batch_ids to names via batchNameById and keeps
+    // courses with at least one matching batch.
+    const batchTerm = batchSearch.trim().toLowerCase();
+    const rows = batchTerm
+        ? data.courses.data.filter((c) => {
+            const ids = Array.isArray(c.batch_ids) ? c.batch_ids : [];
+            return ids.some((id) =>
+                String(batchNameById[id] || id).toLowerCase().includes(batchTerm)
+            );
+        })
+        : data.courses.data;
     const isEmpty = rows.length === 0;
 
     return (
@@ -364,7 +378,16 @@ export default function CourseIndex() {
                                         <th scope="col">#</th>
                                         <th scope="col">Title</th>
                                         <th scope="col">Colleges</th>
-                                        <th scope="col">Batches</th>
+                                        <th scope="col">
+                                            <div>Batches</div>
+                                            <input
+                                                type="text"
+                                                value={batchSearch}
+                                                onChange={(e) => setBatchSearch(e.target.value)}
+                                                placeholder="Search batch…"
+                                                className="mt-1 w-full min-w-[120px] rounded border border-ebordermuted px-2 py-1 text-[11px] font-normal"
+                                            />
+                                        </th>
                                         <th scope="col">Lesson & Section</th>
                                         <th scope="col">Enrolled Student</th>
                                         <th scope="col">Status</th>
