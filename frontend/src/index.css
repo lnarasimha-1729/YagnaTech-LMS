@@ -625,6 +625,19 @@ All colors MUST be HSL.
         border-collapse: collapse !important;
         font-size: 9px !important;
     }
+    /* Very wide tables (e.g. Manage Students = 13 cols) get an even tighter
+       footprint so every column fits legibly. Add `print-compact` to the table. */
+    .print-area table.print-compact {
+        font-size: 7px !important;
+    }
+    .print-area table.print-compact th,
+    .print-area table.print-compact td {
+        padding: 2px 3px !important;
+        line-height: 1.2 !important;
+    }
+    /* Compact tables: shrink the chip pills so they don't bloat row height. */
+    .print-area table.print-compact .px-2 { padding-left: 2px !important; padding-right: 2px !important; }
+    .print-area table.print-compact span { font-size: 7px !important; }
     .print-area th,
     .print-area td {
         padding: 4px 6px !important;

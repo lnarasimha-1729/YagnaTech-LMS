@@ -98,14 +98,9 @@ export default function InstructorIndex() {
                         <h4 className="text-[16px] font-semibold text-dark m-0 flex items-center gap-2">
                             <i className="fi-rr-graduation-cap" /> Instructor List
                         </h4>
-                        <div className="flex items-center gap-2">
-                            {!isEmpty && (
-                                <ExportDropdown onPdf={handlePrint} onPrint={handlePrint} />
-                            )}
-                            <Link to="/admin/instructors/create" className="ol-btn-outline-secondary flex items-center gap-10px">
-                                <span className="fi-rr-plus" /> <span>Add new Instructor</span>
-                            </Link>
-                        </div>
+                        <Link to="/admin/instructors/create" className="ol-btn-outline-secondary flex items-center gap-10px">
+                            <span className="fi-rr-plus" /> <span>Add new Instructor</span>
+                        </Link>
                     </div>
                 </div>
             </div>
@@ -113,7 +108,11 @@ export default function InstructorIndex() {
             <div className="ol-card p-3">
                 <div className="ol-card-body">
                     <div className="grid grid-cols-12 gap-3 mb-3 mt-3 items-center">
-                        <div className="col-span-12 md:col-span-6" />
+                        <div className="col-span-12 md:col-span-6">
+                            {!isEmpty && (
+                                <ExportDropdown onPdf={handlePrint} onPrint={handlePrint} />
+                            )}
+                        </div>
                         <div className="col-span-12 md:col-span-6">
                             <form onSubmit={onSearch} className="grid grid-cols-12 gap-3">
                                 <div className="col-span-12 md:col-span-9">

@@ -242,7 +242,7 @@ export default function StudentIndex() {
                                 the page. w-full + max-w-full + min-w-0 make
                                 the box clip rather than grow to fit content. */}
                             <div className="w-full max-w-full min-w-0 overflow-x-auto e-table-scroll-y print-area">
-                                <table className="e-table">
+                                <table className="e-table print-compact">
                                     <thead>
                                         <tr>
                                             <th scope="col">#</th>
