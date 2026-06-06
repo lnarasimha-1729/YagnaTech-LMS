@@ -595,8 +595,10 @@ All colors MUST be HSL.
    print-area and pin it to the top-left of the page. Anything inside the table
    marked `.no-print` (e.g. the Options column / row action buttons) is hidden. */
 @media print {
-    /* Landscape + tight margins give wide admin tables room for every column. */
-    @page { size: A4 landscape; margin: 10mm; }
+    /* Tight margins only — orientation is left to the print dialog so the user
+       can pick Portrait/Landscape. (Forcing `size: landscape` made browsers
+       hide the orientation dropdown.) Landscape is recommended for wide tables. */
+    @page { margin: 10mm; }
 
     body * { visibility: hidden !important; }
     .print-area, .print-area * { visibility: visible !important; }
