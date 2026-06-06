@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
@@ -60,6 +60,11 @@ export default function Assessments() {
 
     useEffect(() => { load(); }, []);
 
+    // listAssessments() returns the full set (no pagination), so every row is
+    // already in `rows` — a plain print captures them all. The print CSS hides
+    // everything except the table and its Options column.
+    const handlePrint = () => window.print();
+
     const handleCreate = async (data) => {
         setSubmitting(true);
         try {
@@ -113,14 +118,19 @@ export default function Assessments() {
                             Assessments{' '}
                             <span className="text-muted font-normal">({rows.length})</span>
                         </h4>
-                        <button
-                            type="button"
-                            className="ol-btn-outline-secondary flex items-center gap-10px"
-                            onClick={() => setCreateOpen(true)}
-                        >
-                            <span className="fi-rr-plus" />
-                            <span>Add Assessment</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {rows.length > 0 && (
+                                <ExportDropdown onPdf={handlePrint} onPrint={handlePrint} />
+                            )}
+                            <button
+                                type="button"
+                                className="ol-btn-outline-secondary flex items-center gap-10px"
+                                onClick={() => setCreateOpen(true)}
+                            >
+                                <span className="fi-rr-plus" />
+                                <span>Add Assessment</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -154,7 +164,7 @@ export default function Assessments() {
 
             {!loading && !error && rows.length > 0 && (
                 <div className="ol-card rounded-ol-8">
-                    <div className="ol-card-body p-0 overflow-x-auto e-table-scroll-y">
+                    <div className="ol-card-body p-0 overflow-x-auto e-table-scroll-y print-area">
                         <table className="e-table w-full">
                             <thead>
                                 <tr>
@@ -167,7 +177,7 @@ export default function Assessments() {
                                     <th className="w-[100px]">Timer</th>
                                     <th className="w-[90px]">Score</th>
                                     <th className="w-[120px]">Status</th>
-                                    <th className="w-[160px]">Options</th>
+                                    <th className="w-[160px] no-print">Options</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -221,7 +231,7 @@ export default function Assessments() {
                                         <td>
                                             <StatusBadge status={a.status} />
                                         </td>
-                                        <td>
+                                        <td className="no-print">
                                             <button
                                                 type="button"
                                                 className="text-[12px] text-skin font-semibold mr-3"
@@ -315,6 +325,60 @@ function StatusBadge({ status }) {
     );
 }
 
+// Export menu (PDF / Print). Both actions trigger window.print(); the print
+// stylesheet (index.css @media print) renders only the table — all columns
+// except Options — in landscape.
+function ExportDropdown({ onPdf, onPrint }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+    useEffect(() => {
+        if (!open) return;
+        const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+        document.addEventListener('mousedown', onDoc);
+        document.addEventListener('keydown', onKey);
+        return () => {
+            document.removeEventListener('mousedown', onDoc);
+            document.removeEventListener('keydown', onKey);
+        };
+    }, [open]);
+    return (
+        <div className="relative" ref={ref}>
+            <button
+                type="button"
+                className="ol-btn-light inline-flex items-center gap-2"
+                onClick={() => setOpen((v) => !v)}
+                aria-expanded={open}
+            >
+                Export
+                <i className="fi-rr-file-export" />
+            </button>
+            {open && (
+                <ul className="absolute right-0 z-20 mt-1 min-w-[160px] bg-white border border-border rounded-ol-8 shadow-lg py-1 text-[13px]">
+                    <li>
+                        <button
+                            type="button"
+                            className="w-full text-left flex items-center gap-2 px-3 py-2 text-dark hover:bg-gray-50"
+                            onClick={() => { setOpen(false); onPdf(); }}
+                        >
+                            <i className="fi-rr-file-pdf" /> PDF
+                        </button>
+                    </li>
+                    <li>
+                        <button
+                            type="button"
+                            className="w-full text-left flex items-center gap-2 px-3 py-2 text-dark hover:bg-gray-50"
+                            onClick={() => { setOpen(false); onPrint(); }}
+                        >
+                            <i className="fi-rr-print" /> Print
+                        </button>
+                    </li>
+                </ul>
+            )}
+        </div>
+    );
+}
+
 // Inline chip strip used by both the Colleges and Courses columns. Shows up
 // to two chips with the resolved name; the rest collapse into a "+N more"
 // pill (tooltip lists the overflow). Same treatment Manage Programs uses.
@@ -329,7 +393,13 @@ function IdChips({ ids, nameById, empty, idPrefix = '' }) {
     const hiddenCount = list.length - visible.length;
     const hiddenLabel = list.slice(MAX_VISIBLE_CHIPS).map(labelFor).join(', ');
     return (
-        <div className="flex flex-wrap items-center gap-1">
+        <>
+        {/* Print: show the full comma-separated list so the PDF includes every
+            college/course, not the "+N more" collapse. */}
+        <span className="hidden print:inline text-[11px]">
+            {list.map(labelFor).join(', ')}
+        </span>
+        <div className="flex flex-wrap items-center gap-1 print:hidden">
             {visible.map((id) => {
                 const label = labelFor(id);
                 return (
@@ -351,5 +421,6 @@ function IdChips({ ids, nameById, empty, idPrefix = '' }) {
                 </span>
             )}
         </div>
+        </>
     );
 }
