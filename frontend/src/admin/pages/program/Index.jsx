@@ -65,6 +65,11 @@ export default function ProgramIndex() {
 
     useEffect(() => { load(); }, []);
 
+    // listPrograms() returns the full set (no pagination), so every row is in
+    // `programs` — a plain print captures them all. The shared print CSS shows
+    // only the table; the Options column is marked no-print.
+    const handlePrint = () => window.print();
+
     const handleEditSubmit = async (data) => {
         if (!modal?.data) return;
         setSubmitting(true);
@@ -102,13 +107,18 @@ export default function ProgramIndex() {
                             Manage Programs{' '}
                             <span className="text-muted font-normal">({programs.length})</span>
                         </h4>
-                        <Link
-                            to="/admin/programs/create"
-                            className="ol-btn-outline-secondary flex items-center gap-10px"
-                        >
-                            <span className="fi-rr-plus" />
-                            <span>Add New Program</span>
-                        </Link>
+                        <div className="flex items-center gap-2">
+                            {programs.length > 0 && (
+                                <ExportDropdown onPdf={handlePrint} onPrint={handlePrint} />
+                            )}
+                            <Link
+                                to="/admin/programs/create"
+                                className="ol-btn-outline-secondary flex items-center gap-10px"
+                            >
+                                <span className="fi-rr-plus" />
+                                <span>Add New Program</span>
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -142,7 +152,7 @@ export default function ProgramIndex() {
 
             {!loading && !error && programs.length > 0 && (
                 <div className="ol-card rounded-ol-8">
-                    <div className="ol-card-body p-0 overflow-x-auto e-table-scroll-y">
+                    <div className="ol-card-body p-0 overflow-x-auto e-table-scroll-y print-area">
                         <table className="e-table w-full">
                             <thead>
                                 <tr>
@@ -150,7 +160,7 @@ export default function ProgramIndex() {
                                     <th scope="col">Program title</th>
                                     <th scope="col">College</th>
                                     <th scope="col">Course</th>
-                                    <th scope="col">Options</th>
+                                    <th scope="col" className="no-print">Options</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -190,7 +200,7 @@ export default function ProgramIndex() {
                                                 titleById={courseById}
                                             />
                                         </td>
-                                        <td>
+                                        <td className="no-print">
                                             <OptionsDropdown
                                                 onEdit={() => setModal({ data: p })}
                                                 onDelete={() => setConfirm(p.id)}
@@ -240,7 +250,12 @@ function CourseChips({ courseIds, titleById }) {
         .map((id) => titleById[String(id)] || `#${id}`)
         .join(', ');
     return (
-        <div className="flex flex-wrap items-center gap-1">
+        <>
+        {/* Print: full comma-separated list so the PDF includes every course. */}
+        <span className="hidden print:inline text-[11px]">
+            {ids.map((id) => titleById[String(id)] || `#${id}`).join(', ')}
+        </span>
+        <div className="flex flex-wrap items-center gap-1 print:hidden">
             {visible.map((id) => {
                 const title = titleById[String(id)] || `#${id}`;
                 return (
@@ -262,6 +277,7 @@ function CourseChips({ courseIds, titleById }) {
                 </span>
             )}
         </div>
+        </>
     );
 }
 
@@ -277,7 +293,12 @@ function CollegeChips({ clgIds, nameById }) {
         .map((id) => nameById[id] || id)
         .join(', ');
     return (
-        <div className="flex flex-wrap items-center gap-1">
+        <>
+        {/* Print: full comma-separated list so the PDF includes every college. */}
+        <span className="hidden print:inline text-[11px]">
+            {ids.map((id) => nameById[id] || id).join(', ')}
+        </span>
+        <div className="flex flex-wrap items-center gap-1 print:hidden">
             {visible.map((id) => (
                 <span
                     key={id}
@@ -294,6 +315,60 @@ function CollegeChips({ clgIds, nameById }) {
                 >
                     +{hiddenCount} more
                 </span>
+            )}
+        </div>
+        </>
+    );
+}
+
+// Export menu (PDF / Print). Both trigger window.print(); the @media print CSS
+// (index.css) renders only the table — all columns except Options — in landscape.
+function ExportDropdown({ onPdf, onPrint }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+    useEffect(() => {
+        if (!open) return;
+        const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+        document.addEventListener('mousedown', onDoc);
+        document.addEventListener('keydown', onKey);
+        return () => {
+            document.removeEventListener('mousedown', onDoc);
+            document.removeEventListener('keydown', onKey);
+        };
+    }, [open]);
+    return (
+        <div className="relative" ref={ref}>
+            <button
+                type="button"
+                className="ol-btn-light inline-flex items-center gap-2"
+                onClick={() => setOpen((v) => !v)}
+                aria-expanded={open}
+            >
+                Export
+                <i className="fi-rr-file-export" />
+            </button>
+            {open && (
+                <ul className="absolute right-0 z-20 mt-1 min-w-[160px] bg-white border border-border rounded-ol-8 shadow-lg py-1 text-[13px]">
+                    <li>
+                        <button
+                            type="button"
+                            className="w-full text-left flex items-center gap-2 px-3 py-2 text-dark hover:bg-gray-50"
+                            onClick={() => { setOpen(false); onPdf(); }}
+                        >
+                            <i className="fi-rr-file-pdf" /> PDF
+                        </button>
+                    </li>
+                    <li>
+                        <button
+                            type="button"
+                            className="w-full text-left flex items-center gap-2 px-3 py-2 text-dark hover:bg-gray-50"
+                            onClick={() => { setOpen(false); onPrint(); }}
+                        >
+                            <i className="fi-rr-print" /> Print
+                        </button>
+                    </li>
+                </ul>
             )}
         </div>
     );
