@@ -386,7 +386,7 @@ export default function CourseIndex() {
                             </p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto e-table-scroll-y">
+                        <div className="overflow-x-auto e-table-scroll-y print-area">
                             <table className="e-table">
                                 <thead>
                                     <tr>
@@ -394,7 +394,7 @@ export default function CourseIndex() {
                                         <th scope="col">Title</th>
                                         <th scope="col" className="min-w-[160px]">
                                             <div className="mb-1">Colleges</div>
-                                            <div className="relative">
+                                            <div className="relative no-print">
                                                 <i className="fi-rr-search absolute left-2 top-1/2 -translate-y-1/2 text-gray text-[11px] pointer-events-none" />
                                                 <input
                                                     type="text"
@@ -417,7 +417,7 @@ export default function CourseIndex() {
                                         </th>
                                         <th scope="col" className="min-w-[160px]">
                                             <div className="mb-1">Batches</div>
-                                            <div className="relative">
+                                            <div className="relative no-print">
                                                 <i className="fi-rr-search absolute left-2 top-1/2 -translate-y-1/2 text-gray text-[11px] pointer-events-none" />
                                                 <input
                                                     type="text"
@@ -442,7 +442,7 @@ export default function CourseIndex() {
                                         <th scope="col">Enrolled Student</th>
                                         <th scope="col">Status</th>
                                         <th scope="col">Price</th>
-                                        <th scope="col">Options</th>
+                                        <th scope="col" className="no-print">Options</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -511,7 +511,7 @@ export default function CourseIndex() {
                                                     <span className="text-skin font-semibold">${Number(c.price).toFixed(2)}</span>
                                                 )}
                                             </td>
-                                            <td>
+                                            <td className="no-print">
                                                 <OptionsDropdown
                                                     course={c}
                                                     onDuplicate={() => handleDuplicate(c.id)}

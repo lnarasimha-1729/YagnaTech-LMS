@@ -146,7 +146,7 @@ export default function CollegeIndex() {
                                 </p>
                                 {loading && <span className="text-[12px] text-gray">Refreshing…</span>}
                             </div>
-                            <div className="overflow-x-auto e-table-scroll-y">
+                            <div className="overflow-x-auto e-table-scroll-y print-area">
                                 <table className="e-table">
                                     <thead>
                                         <tr>
@@ -155,7 +155,7 @@ export default function CollegeIndex() {
                                             <th scope="col">College ID</th>
                                             <th scope="col">YAG ID</th>
                                             <th scope="col">Active Batches</th>
-                                            <th scope="col">Options</th>
+                                            <th scope="col" className="no-print">Options</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -181,7 +181,7 @@ export default function CollegeIndex() {
                                                         {c.batches_count ?? 0}
                                                     </span>
                                                 </td>
-                                                <td>
+                                                <td className="no-print">
                                                     <CollegeOptions
                                                         college={c}
                                                         onDelete={() => setConfirm({ type: 'delete', id: c.clgId, name: c.clgName })}

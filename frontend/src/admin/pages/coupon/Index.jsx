@@ -174,7 +174,7 @@ export default function CouponIndex() {
                                 </p>
                                 {loading && <span className="text-[12px] text-gray">Refreshing…</span>}
                             </div>
-                            <div className="overflow-x-auto">
+                            <div className="overflow-x-auto print-area">
                                 <table className="e-table">
                                     <thead>
                                         <tr>
@@ -183,7 +183,7 @@ export default function CouponIndex() {
                                             <th scope="col">Discount</th>
                                             <th scope="col">Expiry</th>
                                             <th scope="col">Status</th>
-                                            <th scope="col">Options</th>
+                                            <th scope="col" className="no-print">Options</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -202,7 +202,7 @@ export default function CouponIndex() {
                                                         {c.status ? 'Active' : 'Inactive'}
                                                     </span>
                                                 </td>
-                                                <td>
+                                                <td className="no-print">
                                                     <CouponOptions
                                                         coupon={c}
                                                         onToggle={() => handleToggle(c.id)}

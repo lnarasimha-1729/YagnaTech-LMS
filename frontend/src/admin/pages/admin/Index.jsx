@@ -140,7 +140,7 @@ export default function AdminIndex() {
                                 </p>
                                 {loading && <span className="text-[12px] text-gray">Refreshing…</span>}
                             </div>
-                            <div className="overflow-x-auto e-table-scroll-y">
+                            <div className="overflow-x-auto e-table-scroll-y print-area">
                                 <table className="e-table">
                                     <thead>
                                         <tr>
@@ -148,7 +148,7 @@ export default function AdminIndex() {
                                             <th scope="col">Name</th>
                                             <th scope="col">Phone</th>
                                             <th scope="col">College Name</th>
-                                            <th scope="col">Options</th>
+                                            <th scope="col" className="no-print">Options</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -174,7 +174,7 @@ export default function AdminIndex() {
                                                         {a.college_name || <span className="text-gray">College Name</span>}
                                                     </p>
                                                 </td>
-                                                <td>
+                                                <td className="no-print">
                                                     {/* Root admin used to show a "Root Admin" pill in place of the
                                                         three-dot menu, which broke row-action consistency. Now every
                                                         row gets the dots; the root row's dropdown just hides Delete

@@ -168,7 +168,7 @@ export default function CertificateIndex() {
                                 </p>
                                 {loading && <span className="text-[12px] text-gray">Refreshing…</span>}
                             </div>
-                            <div className="overflow-x-auto e-table-scroll-y">
+                            <div className="overflow-x-auto e-table-scroll-y print-area">
                                 <table className="e-table">
                                     <thead>
                                         <tr>
@@ -177,7 +177,7 @@ export default function CertificateIndex() {
                                             <th scope="col">Identifier</th>
                                             <th scope="col">Template</th>
                                             <th scope="col">Status</th>
-                                            <th scope="col">Options</th>
+                                            <th scope="col" className="no-print">Options</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -223,7 +223,7 @@ export default function CertificateIndex() {
                                                         {c.status ? 'Active' : 'Inactive'}
                                                     </span>
                                                 </td>
-                                                <td>
+                                                <td className="no-print">
                                                     <CertificateOptions
                                                         certificate={c}
                                                         onToggle={() => handleToggle(c.id)}
