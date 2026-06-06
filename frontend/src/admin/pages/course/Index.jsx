@@ -128,8 +128,9 @@ export default function CourseIndex() {
     // loaded courses are assigned to (root admin has no college_id, so the
     // non-gated /batches/by-colleges endpoint is used).
     const [batchNameById, setBatchNameById] = useState({});
-    // Client-side filter for the Batches column — matches a course's assigned
-    // batch names (case-insensitive substring). Empty = show all.
+    // Client-side filters for the Colleges / Batches columns — match a course's
+    // assigned college / batch names (case-insensitive substring). Empty = all.
+    const [collegeSearch, setCollegeSearch] = useState('');
     const [batchSearch, setBatchSearch] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -272,14 +273,24 @@ export default function CourseIndex() {
     // Resolves each course's batch_ids to names via batchNameById and keeps
     // courses with at least one matching batch.
     const batchTerm = batchSearch.trim().toLowerCase();
+    const collegeTerm = collegeSearch.trim().toLowerCase();
     const allRows = data.courses.data;
-    const rows = batchTerm
-        ? allRows.filter((c) => {
-            const ids = Array.isArray(c.batch_ids) ? c.batch_ids : [];
-            return ids.some((id) =>
-                String(batchNameById[id] || id).toLowerCase().includes(batchTerm)
-            );
-        })
+    const matchesCollege = (c) => {
+        if (!collegeTerm) return true;
+        const ids = Array.isArray(c.clg_ids) ? c.clg_ids : [];
+        return ids.some((id) =>
+            String(collegeNameById[id] || id).toLowerCase().includes(collegeTerm)
+        );
+    };
+    const matchesBatch = (c) => {
+        if (!batchTerm) return true;
+        const ids = Array.isArray(c.batch_ids) ? c.batch_ids : [];
+        return ids.some((id) =>
+            String(batchNameById[id] || id).toLowerCase().includes(batchTerm)
+        );
+    };
+    const rows = (collegeTerm || batchTerm)
+        ? allRows.filter((c) => matchesCollege(c) && matchesBatch(c))
         : allRows;
     // The full-page empty state is only for "no courses loaded at all". When
     // courses exist but the batch filter matches none, keep the table (and its
@@ -381,7 +392,29 @@ export default function CourseIndex() {
                                     <tr>
                                         <th scope="col">#</th>
                                         <th scope="col">Title</th>
-                                        <th scope="col">Colleges</th>
+                                        <th scope="col" className="min-w-[160px]">
+                                            <div className="mb-1">Colleges</div>
+                                            <div className="relative">
+                                                <i className="fi-rr-search absolute left-2 top-1/2 -translate-y-1/2 text-gray text-[11px] pointer-events-none" />
+                                                <input
+                                                    type="text"
+                                                    value={collegeSearch}
+                                                    onChange={(e) => setCollegeSearch(e.target.value)}
+                                                    placeholder="Search college"
+                                                    className="ol-form-control w-full !py-1 !pl-7 !pr-6 !text-[12px] font-normal"
+                                                />
+                                                {collegeSearch && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setCollegeSearch('')}
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray hover:text-dark text-[12px] leading-none"
+                                                        aria-label="Clear college search"
+                                                    >
+                                                        ×
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </th>
                                         <th scope="col" className="min-w-[160px]">
                                             <div className="mb-1">Batches</div>
                                             <div className="relative">
@@ -416,7 +449,7 @@ export default function CourseIndex() {
                                     {rows.length === 0 && (
                                         <tr>
                                             <td colSpan={9} className="py-8 text-center text-[13px] text-gray">
-                                                No courses match “{batchSearch.trim()}”.
+                                                No courses match your search.
                                             </td>
                                         </tr>
                                     )}
