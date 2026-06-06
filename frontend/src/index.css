@@ -595,6 +595,9 @@ All colors MUST be HSL.
    print-area and pin it to the top-left of the page. Anything inside the table
    marked `.no-print` (e.g. the Options column / row action buttons) is hidden. */
 @media print {
+    /* Landscape + tight margins give wide admin tables room for every column. */
+    @page { size: A4 landscape; margin: 10mm; }
+
     body * { visibility: hidden !important; }
     .print-area, .print-area * { visibility: visible !important; }
     .print-area {
@@ -607,9 +610,31 @@ All colors MUST be HSL.
     .print-area .e-table-scroll-y,
     .print-area .overflow-x-auto {
         overflow: visible !important; max-height: none !important;
+        width: 100% !important;
     }
     .no-print { display: none !important; }
-    /* Let the table break across pages cleanly. */
-    .print-area table { width: 100% !important; }
+
+    /* Make the whole table fit the page width instead of overflowing (which
+       clips the right-hand columns). table-layout:fixed distributes columns to
+       the available width; small font + padding + wrapping keep content legible. */
+    .print-area table {
+        width: 100% !important;
+        table-layout: fixed !important;
+        border-collapse: collapse !important;
+        font-size: 9px !important;
+    }
+    .print-area th,
+    .print-area td {
+        padding: 4px 6px !important;
+        white-space: normal !important;       /* allow wrapping */
+        word-break: break-word !important;
+        overflow-wrap: anywhere !important;
+        min-width: 0 !important;              /* override min-w-[...] utilities */
+        max-width: none !important;
+        border: 1px solid #ddd !important;
+        vertical-align: top !important;
+    }
+    /* Images (e.g. instructor avatars) shouldn't blow out a column. */
+    .print-area img { max-width: 28px !important; height: auto !important; }
     .print-area tr { page-break-inside: avoid; }
 }
