@@ -39,6 +39,11 @@ export default function InstructorIndex() {
 
     useEffect(() => { load(); /* eslint-disable-next-line */ }, [params]);
 
+    // The list loads every instructor (per_page: 1000), so a plain print
+    // captures them all. Shared print CSS shows only the table; Options is
+    // marked no-print.
+    const handlePrint = () => window.print();
+
     const onSearch = (e) => {
         e.preventDefault();
         const fd = new FormData(e.target);
@@ -93,9 +98,14 @@ export default function InstructorIndex() {
                         <h4 className="text-[16px] font-semibold text-dark m-0 flex items-center gap-2">
                             <i className="fi-rr-graduation-cap" /> Instructor List
                         </h4>
-                        <Link to="/admin/instructors/create" className="ol-btn-outline-secondary flex items-center gap-10px">
-                            <span className="fi-rr-plus" /> <span>Add new Instructor</span>
-                        </Link>
+                        <div className="flex items-center gap-2">
+                            {!isEmpty && (
+                                <ExportDropdown onPdf={handlePrint} onPrint={handlePrint} />
+                            )}
+                            <Link to="/admin/instructors/create" className="ol-btn-outline-secondary flex items-center gap-10px">
+                                <span className="fi-rr-plus" /> <span>Add new Instructor</span>
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -128,7 +138,7 @@ export default function InstructorIndex() {
                             <p className="text-gray text-[14px] m-0 mb-3">
                                 Showing {rows.length} of {data.total} data
                             </p>
-                            <div className="overflow-x-auto e-table-scroll-y">
+                            <div className="overflow-x-auto e-table-scroll-y print-area">
                                 <table className="e-table">
                                     <thead>
                                         <tr>
@@ -137,7 +147,7 @@ export default function InstructorIndex() {
                                             <th>Phone</th>
                                             <th>Expertise</th>
                                             <th>Years</th>
-                                            <th>Options</th>
+                                            <th className="no-print">Options</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -161,7 +171,7 @@ export default function InstructorIndex() {
                                                         ? `${s.yearsOfExperience} yr${s.yearsOfExperience === 1 ? '' : 's'}`
                                                         : <span className="text-gray">—</span>}
                                                 </td>
-                                                <td>
+                                                <td className="no-print">
                                                     <InstructorOptions
                                                         instructor={s}
                                                         onDelete={() => setConfirm({ id: s.id, name: s.name })}
@@ -192,6 +202,59 @@ export default function InstructorIndex() {
 // Kebab (three-dots) row menu — identical behaviour to AdminOptions in
 // Manage Admin: portal-positioned dropdown with Edit + Delete, closes on
 // outside click / Escape / scroll / resize.
+// Export menu (PDF / Print). Both trigger window.print(); the @media print CSS
+// (index.css) renders only the table — all columns except Options — in landscape.
+function ExportDropdown({ onPdf, onPrint }) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+    useEffect(() => {
+        if (!open) return;
+        const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+        document.addEventListener('mousedown', onDoc);
+        document.addEventListener('keydown', onKey);
+        return () => {
+            document.removeEventListener('mousedown', onDoc);
+            document.removeEventListener('keydown', onKey);
+        };
+    }, [open]);
+    return (
+        <div className="relative" ref={ref}>
+            <button
+                type="button"
+                className="ol-btn-light inline-flex items-center gap-2"
+                onClick={() => setOpen((v) => !v)}
+                aria-expanded={open}
+            >
+                Export
+                <i className="fi-rr-file-export" />
+            </button>
+            {open && (
+                <ul className="absolute right-0 z-20 mt-1 min-w-[160px] bg-white border border-border rounded-ol-8 shadow-lg py-1 text-[13px]">
+                    <li>
+                        <button
+                            type="button"
+                            className="w-full text-left flex items-center gap-2 px-3 py-2 text-dark hover:bg-gray-50"
+                            onClick={() => { setOpen(false); onPdf(); }}
+                        >
+                            <i className="fi-rr-file-pdf" /> PDF
+                        </button>
+                    </li>
+                    <li>
+                        <button
+                            type="button"
+                            className="w-full text-left flex items-center gap-2 px-3 py-2 text-dark hover:bg-gray-50"
+                            onClick={() => { setOpen(false); onPrint(); }}
+                        >
+                            <i className="fi-rr-print" /> Print
+                        </button>
+                    </li>
+                </ul>
+            )}
+        </div>
+    );
+}
+
 function InstructorOptions({ instructor, onDelete }) {
     const [open, setOpen] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0 });

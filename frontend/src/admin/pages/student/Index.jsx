@@ -241,7 +241,7 @@ export default function StudentIndex() {
                                 wide table scrolls here instead of widening
                                 the page. w-full + max-w-full + min-w-0 make
                                 the box clip rather than grow to fit content. */}
-                            <div className="w-full max-w-full min-w-0 overflow-x-auto e-table-scroll-y">
+                            <div className="w-full max-w-full min-w-0 overflow-x-auto e-table-scroll-y print-area">
                                 <table className="e-table">
                                     <thead>
                                         <tr>
@@ -258,7 +258,7 @@ export default function StudentIndex() {
                                             <th scope="col">Certificate Status</th>
                                             <th scope="col">Program Request</th>
                                             <th scope="col">Request Status</th>
-                                            <th scope="col">Options</th>
+                                            <th scope="col" className="no-print">Options</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -359,7 +359,7 @@ export default function StudentIndex() {
                                                 <td>
                                                     <RequestStatusBadge status={s.program_request_status} />
                                                 </td>
-                                                <td>
+                                                <td className="no-print">
                                                     <StudentOptions
                                                         student={s}
                                                         onDelete={() => setConfirm({ id: s.id, name: s.name })}
