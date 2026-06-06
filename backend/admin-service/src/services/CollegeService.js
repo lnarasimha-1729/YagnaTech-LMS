@@ -63,7 +63,8 @@ const list = async ({ page = 1, per_page = 10, search = '' } = {}) => {
         if (clgIds.length) {
             try {
                 const counts = await Batch.findAll({
-                    where: { clg_id: clgIds },
+                    // Only active batches — the column is labelled "Active Batches".
+                    where: { clg_id: clgIds, is_active: true },
                     attributes: ['clg_id', [fn('COUNT', col('id')), 'count']],
                     group: ['clg_id'],
                     raw: true,

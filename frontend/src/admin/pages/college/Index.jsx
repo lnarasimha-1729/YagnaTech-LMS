@@ -154,7 +154,7 @@ export default function CollegeIndex() {
                                             <th scope="col">College Name</th>
                                             <th scope="col">College ID</th>
                                             <th scope="col">YAG ID</th>
-                                            <th scope="col">Batches</th>
+                                            <th scope="col">Active Batches</th>
                                             <th scope="col">Options</th>
                                         </tr>
                                     </thead>
