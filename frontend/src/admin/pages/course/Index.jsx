@@ -272,15 +272,19 @@ export default function CourseIndex() {
     // Resolves each course's batch_ids to names via batchNameById and keeps
     // courses with at least one matching batch.
     const batchTerm = batchSearch.trim().toLowerCase();
+    const allRows = data.courses.data;
     const rows = batchTerm
-        ? data.courses.data.filter((c) => {
+        ? allRows.filter((c) => {
             const ids = Array.isArray(c.batch_ids) ? c.batch_ids : [];
             return ids.some((id) =>
                 String(batchNameById[id] || id).toLowerCase().includes(batchTerm)
             );
         })
-        : data.courses.data;
-    const isEmpty = rows.length === 0;
+        : allRows;
+    // The full-page empty state is only for "no courses loaded at all". When
+    // courses exist but the batch filter matches none, keep the table (and its
+    // headers + search box) visible and show an in-body "no match" row instead.
+    const isEmpty = allRows.length === 0;
 
     return (
         <div>
@@ -378,15 +382,28 @@ export default function CourseIndex() {
                                         <th scope="col">#</th>
                                         <th scope="col">Title</th>
                                         <th scope="col">Colleges</th>
-                                        <th scope="col">
-                                            <div>Batches</div>
-                                            <input
-                                                type="text"
-                                                value={batchSearch}
-                                                onChange={(e) => setBatchSearch(e.target.value)}
-                                                placeholder="Search batch…"
-                                                className="mt-1 w-full min-w-[120px] rounded border border-ebordermuted px-2 py-1 text-[11px] font-normal"
-                                            />
+                                        <th scope="col" className="min-w-[160px]">
+                                            <div className="mb-1">Batches</div>
+                                            <div className="relative">
+                                                <i className="fi-rr-search absolute left-2 top-1/2 -translate-y-1/2 text-gray text-[11px] pointer-events-none" />
+                                                <input
+                                                    type="text"
+                                                    value={batchSearch}
+                                                    onChange={(e) => setBatchSearch(e.target.value)}
+                                                    placeholder="Search batch"
+                                                    className="ol-form-control w-full !py-1 !pl-7 !pr-6 !text-[12px] font-normal"
+                                                />
+                                                {batchSearch && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setBatchSearch('')}
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray hover:text-dark text-[12px] leading-none"
+                                                        aria-label="Clear batch search"
+                                                    >
+                                                        ×
+                                                    </button>
+                                                )}
+                                            </div>
                                         </th>
                                         <th scope="col">Lesson & Section</th>
                                         <th scope="col">Enrolled Student</th>
@@ -396,6 +413,13 @@ export default function CourseIndex() {
                                     </tr>
                                 </thead>
                                 <tbody>
+                                    {rows.length === 0 && (
+                                        <tr>
+                                            <td colSpan={9} className="py-8 text-center text-[13px] text-gray">
+                                                No courses match “{batchSearch.trim()}”.
+                                            </td>
+                                        </tr>
+                                    )}
                                     {rows.map((c, i) => (
                                         <tr key={c.id}>
                                             <td>{(data.courses.current_page - 1) * data.courses.per_page + i + 1}</td>
