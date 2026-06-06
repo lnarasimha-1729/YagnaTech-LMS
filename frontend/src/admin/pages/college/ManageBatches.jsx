@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import ExportMenu from '../../components/ExportMenu';
 import {
     listBatches,
     getBatch,
@@ -62,14 +63,19 @@ export default function ManageBatches({ refreshKey }) {
                             Manage Batches{' '}
                             <span className="text-muted font-normal">({rows.length})</span>
                         </h4>
-                        <button
-                            type="button"
-                            className="ol-btn-outline-secondary"
-                            onClick={load}
-                            disabled={loading}
-                        >
-                            {loading ? 'Refreshing…' : 'Refresh'}
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {rows.length > 0 && (
+                                <ExportMenu onPdf={() => window.print()} onPrint={() => window.print()} align="right" />
+                            )}
+                            <button
+                                type="button"
+                                className="ol-btn-outline-secondary"
+                                onClick={load}
+                                disabled={loading}
+                            >
+                                {loading ? 'Refreshing…' : 'Refresh'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -103,7 +109,7 @@ export default function ManageBatches({ refreshKey }) {
 
             {!loading && !error && rows.length > 0 && (
                 <div className="ol-card rounded-ol-8">
-                    <div className="ol-card-body p-0 overflow-x-auto">
+                    <div className="ol-card-body p-0 overflow-x-auto print-area">
                         <table className="e-table w-full">
                             <thead>
                                 <tr>
@@ -112,7 +118,7 @@ export default function ManageBatches({ refreshKey }) {
                                     <th className="w-[140px]">Members</th>
                                     <th className="w-[180px]">Schedule</th>
                                     <th className="w-[100px]">Status</th>
-                                    <th className="w-[220px]">Options</th>
+                                    <th className="w-[220px] no-print">Options</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -147,7 +153,7 @@ export default function ManageBatches({ refreshKey }) {
                                         <td>
                                             <StatusBadge active={b.is_active} />
                                         </td>
-                                        <td>
+                                        <td className="no-print">
                                             <button
                                                 type="button"
                                                 className="text-[12px] text-skin font-semibold mr-3"

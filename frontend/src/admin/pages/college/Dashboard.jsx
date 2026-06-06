@@ -5,6 +5,7 @@ import { listStudents } from '../../api/student';
 import { getStoredUser } from '../../api/auth';
 import BatchForm from './BatchForm';
 import ManageBatches from './ManageBatches';
+import ExportMenu from '../../components/ExportMenu';
 
 const API = import.meta.env.VITE_ADMIN_API_URL || 'http://localhost:4000';
 
@@ -19,6 +20,57 @@ const fmtDuration = (secs) => {
 const avatarUrl = (row) => row.photo
     ? `${API}/${row.photo}`
     : `https://ui-avatars.com/api/?name=${encodeURIComponent(row.name || row.email || 'S')}&background=169f48&color=fff`;
+
+// ---- Export (PDF + CSV) for the college dashboard's students table ----
+// Plain-string extractors (no JSX) shared by the clean print table and the CSV.
+// Same fields as Manage Students minus College (implied by the dashboard).
+const fmtAssessment = (a) =>
+    a ? `${a.passed ? 'Pass' : 'Fail'} · Score ${a.score} · ${fmtDuration(a.duration_seconds)}` : 'Not taken';
+const fmtCert = (c) => {
+    if (!c || !c.issued) return 'Not issued';
+    const date = c.latest_issued_at ? new Date(c.latest_issued_at).toLocaleDateString() : '';
+    return `Issued${c.count > 1 ? ` ×${c.count}` : ''}${date ? ` (${date})` : ''}`;
+};
+const fmtCourseStatus = (courses) => {
+    const rows = Array.isArray(courses) ? courses : [];
+    if (!rows.length) return 'No courses';
+    return rows.map((c) => `${c.title}: ${Number(c.progress_pct) || 0}%`).join('; ');
+};
+const REQUEST_STATUS_LABELS = {
+    sent: 'Pending', accepted: 'Accepted', rejected: 'Rejected', cancelled: 'Cancelled',
+};
+const STUDENT_EXPORT_COLUMNS = [
+    { header: 'Name', value: (s) => s.name || '' },
+    { header: 'Email', value: (s) => s.email || '' },
+    { header: 'Phone', value: (s) => s.phone || '' },
+    { header: 'Batch', value: (s) => s.batch || '' },
+    { header: 'Enrolled Courses', value: (s) => (Array.isArray(s.enrolled_courses) && s.enrolled_courses.length ? s.enrolled_courses.map((c) => c.title).join('; ') : 'None') },
+    { header: 'Program Interested', value: (s) => s.program_interested || 'Not selected' },
+    { header: 'Pre-Assessment', value: (s) => fmtAssessment(s.pre_assessment) },
+    { header: 'Post-Assessment', value: (s) => fmtAssessment(s.post_assessment) },
+    { header: 'Course Status', value: (s) => fmtCourseStatus(s.enrolled_courses) },
+    { header: 'Certificate Status', value: (s) => fmtCert(s.certificate) },
+    { header: 'Program Sent', value: (s) => s.program_request || '' },
+    { header: 'Request Status', value: (s) => REQUEST_STATUS_LABELS[s.program_request_status] || (s.program_request_status || 'No request') },
+];
+const downloadStudentsCsv = (students, collegeName) => {
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const header = ['#', ...STUDENT_EXPORT_COLUMNS.map((c) => c.header)];
+    const lines = [header.map(esc).join(',')];
+    students.forEach((s, i) => {
+        lines.push([esc(i + 1), ...STUDENT_EXPORT_COLUMNS.map((c) => esc(c.value(s)))].join(','));
+    });
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const slug = (collegeName || 'college').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+    a.download = `students-${slug}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
 
 /**
  * College Dashboard — landing page for college admins.
@@ -231,9 +283,19 @@ function CollegeStudentsTable({ collegeName }) {
             <div className="ol-card-body min-w-0">
                 <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
                     <h4 className="text-[16px] font-semibold text-dark m-0">Students</h4>
-                    <p className="text-gray text-[13px] m-0">
-                        {loading ? 'Loading…' : `${rows.length} of ${total}`}
-                    </p>
+                    <div className="flex items-center gap-3">
+                        <p className="text-gray text-[13px] m-0">
+                            {loading ? 'Loading…' : `${rows.length} of ${total}`}
+                        </p>
+                        {rows.length > 0 && (
+                            <ExportMenu
+                                align="right"
+                                onPdf={() => window.print()}
+                                onPrint={() => window.print()}
+                                onCsv={() => downloadStudentsCsv(rows, collegeName)}
+                            />
+                        )}
+                    </div>
                 </div>
 
                 {error ? (
@@ -245,7 +307,8 @@ function CollegeStudentsTable({ collegeName }) {
                         <p className="text-[14px] text-gray m-0">No students found for this college.</p>
                     </div>
                 ) : (
-                    <div className="w-full max-w-full min-w-0 overflow-x-auto">
+                  <>
+                    <div className="w-full max-w-full min-w-0 overflow-x-auto print:hidden">
                         <table className="e-table">
                             <thead>
                                 <tr>
@@ -369,6 +432,33 @@ function CollegeStudentsTable({ collegeName }) {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Clean print-only table — plain text, no avatars/badges —
+                        so the PDF reads well. Hidden on screen; shown only when
+                        printing (the @media print rules reveal print-area). */}
+                    <div className="hidden print:block print-area">
+                        <table className="e-table print-compact">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    {STUDENT_EXPORT_COLUMNS.map((c) => (
+                                        <th key={c.header}>{c.header}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rows.map((s, i) => (
+                                    <tr key={s.id}>
+                                        <td>{i + 1}</td>
+                                        {STUDENT_EXPORT_COLUMNS.map((c) => (
+                                            <td key={c.header}>{c.value(s)}</td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                  </>
                 )}
             </div>
         </div>
