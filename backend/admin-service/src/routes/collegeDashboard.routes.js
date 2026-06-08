@@ -6,5 +6,7 @@ const ctrl = require('../controllers/CollegeDashboardController');
 router.get('/college-dashboard/stats', ctrl.stats);
 // Courses assigned to the caller's college (read-only).
 router.get('/college-dashboard/courses', ctrl.courses);
+// Programs assigned to the caller's college (read-only).
+router.get('/college-dashboard/programs', ctrl.programs);
 
 module.exports = router;

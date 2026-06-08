@@ -1,6 +1,6 @@
 const { QueryTypes } = require('sequelize');
 const authDb = require('../config/authDatabase');
-const { Certificate, UserProgress, Course, Lesson, Batch, sequelize } = require('../models');
+const { Certificate, UserProgress, Course, Lesson, Batch, Program, sequelize } = require('../models');
 const { HttpError } = require('../middlewares/error');
 
 /**
@@ -192,4 +192,93 @@ const getCoursesForCollege = async ({ collegeId }) => {
     });
 };
 
-module.exports = { getStats, getCoursesForCollege };
+// Programs the root admin assigned to this college (programs.clg_ids contains
+// the clgId). Returns each program with its bundled course NAMES and batch
+// NAMES (scoped to this college), plus enrolled count of THIS college's
+// students. Read-only.
+const getProgramsForCollege = async ({ collegeId }) => {
+    if (!collegeId) {
+        throw new HttpError(400, 'College admin profile is missing a college_id');
+    }
+    const filter = String(collegeId).trim();
+    const norm = (v) => String(v ?? '').trim().toLowerCase();
+
+    const clgJson = sequelize.escape(JSON.stringify(filter));
+    const programs = await Program.findAll({
+        where: sequelize.literal(`JSON_CONTAINS(\`Program\`.\`clg_ids\`, ${clgJson})`),
+        attributes: ['id', 'title', 'is_active', 'course_id', 'course_ids', 'batch_ids'],
+        order: [['id', 'DESC']],
+        raw: true,
+    });
+    if (!programs.length) return [];
+
+    // Collect all course ids + batch ids referenced across these programs.
+    const allCourseIds = Array.from(new Set(
+        programs.flatMap((p) => {
+            const ids = Array.isArray(p.course_ids) && p.course_ids.length ? p.course_ids : (p.course_id ? [p.course_id] : []);
+            return ids;
+        }).map((id) => Number(id)).filter((n) => Number.isFinite(n))
+    ));
+    const allBatchIds = Array.from(new Set(
+        programs.flatMap((p) => (Array.isArray(p.batch_ids) ? p.batch_ids : []))
+            .map((id) => Number(id)).filter((n) => Number.isFinite(n))
+    ));
+
+    // Resolve course ids -> titles.
+    const courseRows = allCourseIds.length
+        ? await Course.findAll({ where: { id: allCourseIds }, attributes: ['id', 'title'], raw: true })
+        : [];
+    const courseTitleById = Object.fromEntries(courseRows.map((c) => [String(c.id), c.title]));
+
+    // Resolve batch ids -> names, and note which belong to this college.
+    const batchRows = allBatchIds.length
+        ? await Batch.findAll({ where: { id: allBatchIds }, attributes: ['id', 'name', 'clg_id'], raw: true })
+        : [];
+    const batchNameById = Object.fromEntries(batchRows.map((b) => [String(b.id), b.name]));
+    const collegeBatchIds = new Set(
+        batchRows.filter((b) => norm(b.clg_id) === norm(filter)).map((b) => String(b.id))
+    );
+
+    // Enrolled count per program, scoped to this college's students.
+    const students = await authDb.query(
+        `SELECT u.userId
+           FROM users u
+           JOIN roles r ON r.roleId = u.roleId
+          WHERE LOWER(TRIM(u.collegeId)) = LOWER(:filter)
+            AND r.role = 'student'`,
+        { replacements: { filter }, type: QueryTypes.SELECT }
+    );
+    const userIds = students.map((s) => String(s.userId)).filter(Boolean);
+    let enrolledByProgram = {};
+    if (userIds.length) {
+        const programIds = programs.map((p) => p.id);
+        const rows = await UserProgress.findAll({
+            where: { user_id: userIds, program_id: programIds, enrolled: true },
+            attributes: ['program_id', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+            group: ['program_id'],
+            raw: true,
+        });
+        enrolledByProgram = Object.fromEntries(rows.map((r) => [r.program_id, Number(r.count) || 0]));
+    }
+
+    return programs.map((p) => {
+        const courseIds = (Array.isArray(p.course_ids) && p.course_ids.length ? p.course_ids : (p.course_id ? [p.course_id] : [])).map((id) => String(id));
+        const courses = courseIds.map((id) => courseTitleById[id]).filter(Boolean);
+
+        const batchIds = (Array.isArray(p.batch_ids) ? p.batch_ids : []).map((id) => String(id));
+        const scoped = batchIds.filter((id) => collegeBatchIds.has(id));
+        const useIds = scoped.length ? scoped : batchIds;
+        const batches = useIds.map((id) => batchNameById[id]).filter(Boolean);
+
+        return {
+            id: p.id,
+            title: p.title,
+            status: p.is_active === false ? 'inactive' : 'active',
+            courses,  // array of course NAMES bundled in this program
+            batches,  // array of batch NAMES assigned to this program
+            enrolled: enrolledByProgram[p.id] || 0,
+        };
+    });
+};
+
+module.exports = { getStats, getCoursesForCollege, getProgramsForCollege };

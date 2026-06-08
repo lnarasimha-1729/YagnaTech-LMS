@@ -13,3 +13,8 @@ export const getCollegeStats = () =>
 // lesson_count, enrolled }] }.
 export const getCollegeCourses = () =>
     api.get('/college-dashboard/courses').then((r) => r.data);
+
+// Programs the root admin assigned to this college (read-only). Returns
+// { programs: [{ id, title, status, courses[], batches[], enrolled }] }.
+export const getCollegePrograms = () =>
+    api.get('/college-dashboard/programs').then((r) => r.data);

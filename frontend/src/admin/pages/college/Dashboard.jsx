@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { getCollegeStats, getCollegeCourses } from '../../api/collegeDashboard';
+import { getCollegeStats, getCollegeCourses, getCollegePrograms } from '../../api/collegeDashboard';
 import { listStudents } from '../../api/student';
 import { getStoredUser } from '../../api/auth';
 import BatchForm from './BatchForm';
@@ -85,7 +85,7 @@ const downloadStudentsCsv = (students, collegeName) => {
 // Which tab is showing is driven by ?tab= in the URL — the sidebar's
 // Batches dropdown deep-links here with these keys. The header tab strip
 // was removed at the admin's request; the sidebar is now the only nav.
-const VALID_TABS = ['dashboard', 'add-batch', 'manage-batches', 'assigned-courses'];
+const VALID_TABS = ['dashboard', 'add-batch', 'manage-batches', 'assigned-courses', 'assigned-programs'];
 
 export default function CollegeDashboardPage() {
     const [params, setParams] = useSearchParams();
@@ -128,6 +128,7 @@ export default function CollegeDashboardPage() {
             )}
             {tab === 'manage-batches' && <ManageBatches refreshKey={batchesRefreshKey} />}
             {tab === 'assigned-courses' && <AssignedCoursesTable />}
+            {tab === 'assigned-programs' && <AssignedProgramsTable />}
         </div>
     );
 }
@@ -604,6 +605,139 @@ function AssignedCoursesTable() {
                                         </td>
                                         <td>{c.lesson_count ?? 0}</td>
                                         <td>{c.enrolled ?? 0}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ── Assigned Programs tab ──────────────────────────────────────────────────
+// Read-only list of programs the root admin assigned to this college
+// (programs.clg_ids contains the college_id). Columns: Title, Status, Courses
+// (bundled course names), Batches, Enrolled (this college's students).
+const downloadProgramsCsv = (programs) => {
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const header = ['#', 'Program Title', 'Status', 'Courses', 'Batches', 'Enrolled'];
+    const lines = [header.map(esc).join(',')];
+    programs.forEach((p, i) => {
+        const courses = Array.isArray(p.courses) && p.courses.length ? p.courses.join('; ') : 'None';
+        const batches = Array.isArray(p.batches) && p.batches.length ? p.batches.join('; ') : 'None';
+        lines.push([esc(i + 1), esc(p.title), esc(p.status), esc(courses), esc(batches), esc(p.enrolled)].join(','));
+    });
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `assigned-programs-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
+const Chips = ({ items, empty, cls }) => (
+    Array.isArray(items) && items.length ? (
+        <div className="flex flex-wrap gap-1">
+            {items.map((x) => (
+                <span key={x} className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] ${cls}`}>{x}</span>
+            ))}
+        </div>
+    ) : (
+        <span className="text-[11px] text-muted">{empty}</span>
+    )
+);
+
+function AssignedProgramsTable() {
+    const [rows, setRows] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await getCollegePrograms();
+            setRows(Array.isArray(data?.programs) ? data.programs : []);
+        } catch (err) {
+            const status = err?.response?.status;
+            const message = err?.response?.data?.error || err?.message || 'Failed to load programs';
+            setError(status ? `${status} — ${message}` : message);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => { load(); }, [load]);
+
+    return (
+        <div className="ol-card rounded-ol-8">
+            <div className="ol-card-body py-12px px-20px my-3">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                    <h4 className="text-[16px] font-semibold text-dark m-0 flex items-center gap-2">
+                        <i className="fi-rr-graduation-cap" />
+                        Assigned Programs{' '}
+                        <span className="text-muted font-normal">({rows.length})</span>
+                    </h4>
+                    <div className="flex items-center gap-2">
+                        {rows.length > 0 && (
+                            <ExportMenu
+                                align="right"
+                                onPdf={() => window.print()}
+                                onPrint={() => window.print()}
+                                onCsv={() => downloadProgramsCsv(rows)}
+                            />
+                        )}
+                        <button
+                            type="button"
+                            className="ol-btn-outline-secondary text-[13px] px-3 py-1 disabled:opacity-50"
+                            onClick={load}
+                            disabled={loading}
+                        >
+                            {loading ? 'Refreshing…' : 'Refresh'}
+                        </button>
+                    </div>
+                </div>
+
+                {loading ? (
+                    <div className="py-10 text-center text-[13px] text-gray">Loading programs…</div>
+                ) : error ? (
+                    <div className="py-10 text-center">
+                        <p className="text-[14px] text-danger mb-3">{error}</p>
+                        <button className="ol-btn-primary" onClick={load}>Retry</button>
+                    </div>
+                ) : rows.length === 0 ? (
+                    <div className="py-10 text-center border border-dashed border-border rounded-ol-8 mt-3">
+                        <p className="text-[14px] text-gray m-0">
+                            No programs have been assigned to your college yet.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="w-full max-w-full min-w-0 overflow-x-auto mt-3 print-area">
+                        <table className="e-table w-full">
+                            <thead>
+                                <tr>
+                                    <th className="w-[60px]">#</th>
+                                    <th>Program Title</th>
+                                    <th className="w-[120px]">Status</th>
+                                    <th>Courses</th>
+                                    <th>Batches</th>
+                                    <th className="w-[110px]">Enrolled</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rows.map((p, i) => (
+                                    <tr key={p.id}>
+                                        <td>{i + 1}</td>
+                                        <td className="font-semibold text-dark">{p.title}</td>
+                                        <td><CourseStatusBadge status={p.status} /></td>
+                                        <td><Chips items={p.courses} empty="No courses" cls="bg-emerald-50 text-emerald-700" /></td>
+                                        <td><Chips items={p.batches} empty="No batches" cls="bg-indigo-50 text-indigo-700" /></td>
+                                        <td>{p.enrolled ?? 0}</td>
                                     </tr>
                                 ))}
                             </tbody>
