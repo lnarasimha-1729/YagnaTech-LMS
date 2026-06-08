@@ -113,14 +113,26 @@ const getCoursesForCollege = async ({ collegeId }) => {
 
     const courseIds = courses.map((c) => c.id);
 
-    // Resolve batch ids -> names, limited to THIS college's batches so a course
-    // shared across colleges only shows the batches relevant to this admin.
-    const collegeBatches = await Batch.findAll({
-        where: { clg_id: filter },
-        attributes: ['id', 'name'],
-        raw: true,
-    });
-    const batchNameById = Object.fromEntries(collegeBatches.map((b) => [String(b.id), b.name]));
+    // Resolve batch ids -> names. Match clg_id case/whitespace-insensitively
+    // (same drift we guard against for students) so the names resolve even when
+    // the batch's clg_id casing differs from the JWT's college_id. Falling back
+    // to ALL batches referenced by these courses guarantees we never show a raw
+    // id: we look names up by id across the full batch set, then prefer the
+    // college's own batches for scoping.
+    const courseBatchIds = Array.from(new Set(
+        courses.flatMap((c) => (Array.isArray(c.batch_ids) ? c.batch_ids : []))
+            .map((id) => Number(id))
+            .filter((n) => Number.isFinite(n))
+    ));
+    const batchRows = courseBatchIds.length
+        ? await Batch.findAll({ where: { id: courseBatchIds }, attributes: ['id', 'name', 'clg_id'], raw: true })
+        : [];
+    const batchNameById = Object.fromEntries(batchRows.map((b) => [String(b.id), b.name]));
+    // Which of those batches belong to this college (case/space-insensitive)?
+    const norm = (v) => String(v ?? '').trim().toLowerCase();
+    const collegeBatchIds = new Set(
+        batchRows.filter((b) => norm(b.clg_id) === norm(filter)).map((b) => String(b.id))
+    );
 
     // Lessons per course.
     const lessonCounts = await Lesson.findAll({
@@ -160,19 +172,22 @@ const getCoursesForCollege = async ({ collegeId }) => {
     }
 
     return courses.map((c) => {
-        // batch_ids is a JSON array; keep only batches that belong to this
-        // college and resolve them to names.
-        const batchIds = Array.isArray(c.batch_ids) ? c.batch_ids : [];
-        const batches = batchIds
-            .map((id) => batchNameById[String(id)])
-            .filter(Boolean);
+        const batchIds = (Array.isArray(c.batch_ids) ? c.batch_ids : []).map((id) => String(id));
+        // Prefer batches that belong to this college; if none match the college
+        // scope (e.g. clg_id drift), fall back to all of the course's batches so
+        // the admin still sees NAMES, never raw ids.
+        const scoped = batchIds.filter((id) => collegeBatchIds.has(id));
+        const useIds = scoped.length ? scoped : batchIds;
+        const batches = useIds
+            .map((id) => batchNameById[id])   // resolve id -> name
+            .filter(Boolean);                  // drop any unresolved (never show a number)
         return {
             id: c.id,
             title: c.title,
             status: c.status,
             lesson_count: lessonsByCourse[c.id] || 0,
             enrolled: enrolledByCourse[c.id] || 0,
-            batches, // array of batch names assigned to this course for this college
+            batches, // array of batch NAMES assigned to this course
         };
     });
 };
