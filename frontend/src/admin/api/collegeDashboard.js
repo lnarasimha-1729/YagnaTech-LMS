@@ -7,3 +7,9 @@ import api from './client';
  */
 export const getCollegeStats = () =>
     api.get('/college-dashboard/stats').then((r) => r.data);
+
+// Courses the root admin assigned to this college (read-only). College is read
+// from the JWT server-side. Returns { courses: [{ id, title, status,
+// lesson_count, enrolled }] }.
+export const getCollegeCourses = () =>
+    api.get('/college-dashboard/courses').then((r) => r.data);

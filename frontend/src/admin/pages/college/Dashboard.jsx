@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { getCollegeStats } from '../../api/collegeDashboard';
+import { getCollegeStats, getCollegeCourses } from '../../api/collegeDashboard';
 import { listStudents } from '../../api/student';
 import { getStoredUser } from '../../api/auth';
 import BatchForm from './BatchForm';
@@ -85,7 +85,7 @@ const downloadStudentsCsv = (students, collegeName) => {
 // Which tab is showing is driven by ?tab= in the URL — the sidebar's
 // Batches dropdown deep-links here with these keys. The header tab strip
 // was removed at the admin's request; the sidebar is now the only nav.
-const VALID_TABS = ['dashboard', 'add-batch', 'manage-batches'];
+const VALID_TABS = ['dashboard', 'add-batch', 'manage-batches', 'assigned-courses'];
 
 export default function CollegeDashboardPage() {
     const [params, setParams] = useSearchParams();
@@ -127,6 +127,7 @@ export default function CollegeDashboardPage() {
                 />
             )}
             {tab === 'manage-batches' && <ManageBatches refreshKey={batchesRefreshKey} />}
+            {tab === 'assigned-courses' && <AssignedCoursesTable />}
         </div>
     );
 }
@@ -459,6 +460,140 @@ function CollegeStudentsTable({ collegeName }) {
                         </table>
                     </div>
                   </>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ── Assigned Courses tab ───────────────────────────────────────────────────
+// Read-only list of courses the root admin assigned to this college
+// (courses.clg_ids contains the admin's college_id, resolved server-side from
+// the JWT). Columns: Title, Status, Lessons, Enrolled (this college's students).
+const COURSE_STATUS_CLS = {
+    active: 'bg-green-100 text-green-700',
+    inactive: 'bg-gray-200 text-gray-700',
+    pending: 'bg-yellow-100 text-yellow-700',
+    upcoming: 'bg-blue-100 text-blue-700',
+    draft: 'bg-slate-200 text-slate-700',
+    private: 'bg-purple-100 text-purple-700',
+};
+function CourseStatusBadge({ status }) {
+    if (!status) return <span className="text-[11px] text-muted">—</span>;
+    return (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${COURSE_STATUS_CLS[status] || 'bg-gray-100 text-gray-700'}`}>
+            {status}
+        </span>
+    );
+}
+
+const downloadCoursesCsv = (courses) => {
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const header = ['#', 'Course Title', 'Status', 'Lessons', 'Enrolled'];
+    const lines = [header.map(esc).join(',')];
+    courses.forEach((c, i) => {
+        lines.push([esc(i + 1), esc(c.title), esc(c.status), esc(c.lesson_count), esc(c.enrolled)].join(','));
+    });
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `assigned-courses-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
+function AssignedCoursesTable() {
+    const [rows, setRows] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await getCollegeCourses();
+            setRows(Array.isArray(data?.courses) ? data.courses : []);
+        } catch (err) {
+            const status = err?.response?.status;
+            const message = err?.response?.data?.error || err?.message || 'Failed to load courses';
+            setError(status ? `${status} — ${message}` : message);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => { load(); }, [load]);
+
+    return (
+        <div className="ol-card rounded-ol-8">
+            <div className="ol-card-body py-12px px-20px my-3">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                    <h4 className="text-[16px] font-semibold text-dark m-0 flex items-center gap-2">
+                        <i className="fi-rr-book-alt" />
+                        Assigned Courses{' '}
+                        <span className="text-muted font-normal">({rows.length})</span>
+                    </h4>
+                    <div className="flex items-center gap-2">
+                        {rows.length > 0 && (
+                            <ExportMenu
+                                align="right"
+                                onPdf={() => window.print()}
+                                onPrint={() => window.print()}
+                                onCsv={() => downloadCoursesCsv(rows)}
+                            />
+                        )}
+                        <button
+                            type="button"
+                            className="ol-btn-outline-secondary text-[13px] px-3 py-1 disabled:opacity-50"
+                            onClick={load}
+                            disabled={loading}
+                        >
+                            {loading ? 'Refreshing…' : 'Refresh'}
+                        </button>
+                    </div>
+                </div>
+
+                {loading ? (
+                    <div className="py-10 text-center text-[13px] text-gray">Loading courses…</div>
+                ) : error ? (
+                    <div className="py-10 text-center">
+                        <p className="text-[14px] text-danger mb-3">{error}</p>
+                        <button className="ol-btn-primary" onClick={load}>Retry</button>
+                    </div>
+                ) : rows.length === 0 ? (
+                    <div className="py-10 text-center border border-dashed border-border rounded-ol-8 mt-3">
+                        <p className="text-[14px] text-gray m-0">
+                            No courses have been assigned to your college yet.
+                        </p>
+                    </div>
+                ) : (
+                    <div className="w-full max-w-full min-w-0 overflow-x-auto mt-3 print-area">
+                        <table className="e-table w-full">
+                            <thead>
+                                <tr>
+                                    <th className="w-[60px]">#</th>
+                                    <th>Course Title</th>
+                                    <th className="w-[120px]">Status</th>
+                                    <th className="w-[100px]">Lessons</th>
+                                    <th className="w-[110px]">Enrolled</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rows.map((c, i) => (
+                                    <tr key={c.id}>
+                                        <td>{i + 1}</td>
+                                        <td className="font-semibold text-dark">{c.title}</td>
+                                        <td><CourseStatusBadge status={c.status} /></td>
+                                        <td>{c.lesson_count ?? 0}</td>
+                                        <td>{c.enrolled ?? 0}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
             </div>
         </div>

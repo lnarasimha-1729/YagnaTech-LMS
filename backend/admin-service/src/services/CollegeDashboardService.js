@@ -1,6 +1,6 @@
 const { QueryTypes } = require('sequelize');
 const authDb = require('../config/authDatabase');
-const { Certificate, UserProgress } = require('../models');
+const { Certificate, UserProgress, Course, Lesson, sequelize } = require('../models');
 const { HttpError } = require('../middlewares/error');
 
 /**
@@ -90,4 +90,73 @@ const getStats = async ({ collegeId }) => {
     };
 };
 
-module.exports = { getStats };
+// Courses the root admin assigned to this college (courses.clg_ids contains the
+// clgId). Returns each course with its lesson count and the number of THIS
+// college's students enrolled in it. Read-only — the college admin can't edit
+// courses (root admin owns them).
+const getCoursesForCollege = async ({ collegeId }) => {
+    if (!collegeId) {
+        throw new HttpError(400, 'College admin profile is missing a college_id');
+    }
+    const filter = String(collegeId).trim();
+
+    // Courses assigned to this college. clg_ids is a JSON array of clgId strings;
+    // JSON_CONTAINS matches when the array holds the (JSON-encoded) clgId.
+    const clgJson = sequelize.escape(JSON.stringify(filter));
+    const courses = await Course.findAll({
+        where: sequelize.literal(`JSON_CONTAINS(\`Course\`.\`clg_ids\`, ${clgJson})`),
+        attributes: ['id', 'title', 'status'],
+        order: [['id', 'DESC']],
+        raw: true,
+    });
+    if (!courses.length) return [];
+
+    const courseIds = courses.map((c) => c.id);
+
+    // Lessons per course.
+    const lessonCounts = await Lesson.findAll({
+        where: { course_id: courseIds },
+        attributes: ['course_id', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+        group: ['course_id'],
+        raw: true,
+    });
+    const lessonsByCourse = Object.fromEntries(
+        lessonCounts.map((r) => [r.course_id, Number(r.count) || 0])
+    );
+
+    // Enrolled count scoped to THIS college's students. Pull the college's
+    // student userIds from auth-service, then count enrolled UserProgress rows
+    // per course for that set only.
+    const students = await authDb.query(
+        `SELECT u.userId
+           FROM users u
+           JOIN roles r ON r.roleId = u.roleId
+          WHERE LOWER(TRIM(u.collegeId)) = LOWER(:filter)
+            AND r.role = 'student'`,
+        { replacements: { filter }, type: QueryTypes.SELECT }
+    );
+    const userIds = students.map((s) => String(s.userId)).filter(Boolean);
+
+    let enrolledByCourse = {};
+    if (userIds.length) {
+        const enrolledRows = await UserProgress.findAll({
+            where: { user_id: userIds, course_id: courseIds, enrolled: true },
+            attributes: ['course_id', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+            group: ['course_id'],
+            raw: true,
+        });
+        enrolledByCourse = Object.fromEntries(
+            enrolledRows.map((r) => [r.course_id, Number(r.count) || 0])
+        );
+    }
+
+    return courses.map((c) => ({
+        id: c.id,
+        title: c.title,
+        status: c.status,
+        lesson_count: lessonsByCourse[c.id] || 0,
+        enrolled: enrolledByCourse[c.id] || 0,
+    }));
+};
+
+module.exports = { getStats, getCoursesForCollege };

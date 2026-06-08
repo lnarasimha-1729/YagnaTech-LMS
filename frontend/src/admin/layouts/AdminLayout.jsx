@@ -50,6 +50,7 @@ const MENU = [
             { label: 'Manage Batches', to: '/admin/college?tab=manage-batches' },
         ],
     },
+    { key: 'assigned-courses', label: 'Assigned Courses', icon: ICONS.course, to: '/admin/college?tab=assigned-courses', collegeOnly: true },
     { key: 'dashboard', label: 'Dashboard', icon: ICONS.dashboard, to: '/admin/dashboard' },
     // Category sidebar entry removed — course grouping is now driven by the
     // `clg_ids` JSON column written from the course form (CollegeMultiSelect).

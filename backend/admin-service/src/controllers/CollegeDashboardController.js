@@ -13,3 +13,13 @@ exports.stats = asyncHandler(async (req, res) => {
     }
     res.json(await service.getStats({ collegeId }));
 });
+
+// Courses the root admin assigned to this college. College comes from the JWT,
+// never client input — a college admin can't see another college's courses.
+exports.courses = asyncHandler(async (req, res) => {
+    const collegeId = req.user?.college_id;
+    if (!collegeId) {
+        throw new HttpError(403, 'College Dashboard is only available to college admins');
+    }
+    res.json({ courses: await service.getCoursesForCollege({ collegeId }) });
+});
