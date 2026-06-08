@@ -1,6 +1,6 @@
 const { QueryTypes } = require('sequelize');
 const authDb = require('../config/authDatabase');
-const { Certificate, UserProgress, Course, Lesson, sequelize } = require('../models');
+const { Certificate, UserProgress, Course, Lesson, Batch, sequelize } = require('../models');
 const { HttpError } = require('../middlewares/error');
 
 /**
@@ -105,13 +105,22 @@ const getCoursesForCollege = async ({ collegeId }) => {
     const clgJson = sequelize.escape(JSON.stringify(filter));
     const courses = await Course.findAll({
         where: sequelize.literal(`JSON_CONTAINS(\`Course\`.\`clg_ids\`, ${clgJson})`),
-        attributes: ['id', 'title', 'status'],
+        attributes: ['id', 'title', 'status', 'batch_ids'],
         order: [['id', 'DESC']],
         raw: true,
     });
     if (!courses.length) return [];
 
     const courseIds = courses.map((c) => c.id);
+
+    // Resolve batch ids -> names, limited to THIS college's batches so a course
+    // shared across colleges only shows the batches relevant to this admin.
+    const collegeBatches = await Batch.findAll({
+        where: { clg_id: filter },
+        attributes: ['id', 'name'],
+        raw: true,
+    });
+    const batchNameById = Object.fromEntries(collegeBatches.map((b) => [String(b.id), b.name]));
 
     // Lessons per course.
     const lessonCounts = await Lesson.findAll({
@@ -150,13 +159,22 @@ const getCoursesForCollege = async ({ collegeId }) => {
         );
     }
 
-    return courses.map((c) => ({
-        id: c.id,
-        title: c.title,
-        status: c.status,
-        lesson_count: lessonsByCourse[c.id] || 0,
-        enrolled: enrolledByCourse[c.id] || 0,
-    }));
+    return courses.map((c) => {
+        // batch_ids is a JSON array; keep only batches that belong to this
+        // college and resolve them to names.
+        const batchIds = Array.isArray(c.batch_ids) ? c.batch_ids : [];
+        const batches = batchIds
+            .map((id) => batchNameById[String(id)])
+            .filter(Boolean);
+        return {
+            id: c.id,
+            title: c.title,
+            status: c.status,
+            lesson_count: lessonsByCourse[c.id] || 0,
+            enrolled: enrolledByCourse[c.id] || 0,
+            batches, // array of batch names assigned to this course for this college
+        };
+    });
 };
 
 module.exports = { getStats, getCoursesForCollege };

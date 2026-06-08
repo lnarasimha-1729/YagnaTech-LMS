@@ -489,10 +489,11 @@ function CourseStatusBadge({ status }) {
 
 const downloadCoursesCsv = (courses) => {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const header = ['#', 'Course Title', 'Status', 'Lessons', 'Enrolled'];
+    const header = ['#', 'Course Title', 'Status', 'Batches', 'Lessons', 'Enrolled'];
     const lines = [header.map(esc).join(',')];
     courses.forEach((c, i) => {
-        lines.push([esc(i + 1), esc(c.title), esc(c.status), esc(c.lesson_count), esc(c.enrolled)].join(','));
+        const batches = Array.isArray(c.batches) && c.batches.length ? c.batches.join('; ') : 'None';
+        lines.push([esc(i + 1), esc(c.title), esc(c.status), esc(batches), esc(c.lesson_count), esc(c.enrolled)].join(','));
     });
     const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -577,6 +578,7 @@ function AssignedCoursesTable() {
                                     <th className="w-[60px]">#</th>
                                     <th>Course Title</th>
                                     <th className="w-[120px]">Status</th>
+                                    <th>Batches</th>
                                     <th className="w-[100px]">Lessons</th>
                                     <th className="w-[110px]">Enrolled</th>
                                 </tr>
@@ -587,6 +589,19 @@ function AssignedCoursesTable() {
                                         <td>{i + 1}</td>
                                         <td className="font-semibold text-dark">{c.title}</td>
                                         <td><CourseStatusBadge status={c.status} /></td>
+                                        <td>
+                                            {Array.isArray(c.batches) && c.batches.length ? (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {c.batches.map((b) => (
+                                                        <span key={b} className="inline-flex items-center px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[11px]">
+                                                            {b}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <span className="text-[11px] text-muted">No batches</span>
+                                            )}
+                                        </td>
                                         <td>{c.lesson_count ?? 0}</td>
                                         <td>{c.enrolled ?? 0}</td>
                                     </tr>
