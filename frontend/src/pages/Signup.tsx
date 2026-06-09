@@ -35,16 +35,24 @@ const Signup = () => {
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [apiSuccess, setApiSuccess] = useState<string | null>(null);
-  // College selection: "other" (default) shows a free-text college-name box;
-  // any other value is the chosen college's clgId (its yagId is sent as the
-  // YagnaTech ID / college code so the backend links the account to it).
-  const [collegeChoice, setCollegeChoice] = useState<string>("other");
+  // College entry: by default the student types their YagnaTech ID, which we
+  // resolve to a college as they type. If they have none, they switch to
+  // "Others" and type a college name. isOther toggles between the two modes.
+  const [isOther, setIsOther] = useState(false);
 
   const collegeCtx = useContext(CollegeContext);
   const colleges = collegeCtx?.colleges ?? [];
 
   const { registerUser, loading } = useAuth();
   const navigate = useNavigate();
+
+  // The college whose YagnaTech ID (yagId) exactly matches what was typed
+  // (case-insensitive). null while typing / no match.
+  const matchedCollege = (() => {
+    const code = formData.collegeCode.trim().toUpperCase();
+    if (!code) return null;
+    return colleges.find((c) => (c.yagId || "").toUpperCase() === code) || null;
+  })();
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -72,22 +80,25 @@ const Signup = () => {
       return;
     }
 
-    // Resolve the college choice into what the backend expects:
-    //  - a real college selected -> send its yagId as collegeCode (backend
-    //    links collegeId + canonical name).
-    //  - "other" -> send the typed collegeName, no code.
+    // Resolve the college entry into what the backend expects:
+    //  - YagnaTech ID mode -> send the typed code as collegeCode; the backend
+    //    links collegeId + canonical name. Adopt the matched name if resolved.
+    //  - Others -> send the typed collegeName, no code.
     let collegeCode = "";
     let collegeName = "";
-    if (collegeChoice === "other") {
+    if (isOther) {
       collegeName = formData.collegeName.trim();
       if (!collegeName) {
-        setApiError("Please enter your college name (or pick your college from the list).");
+        setApiError("Please enter your college name (or enter your YagnaTech ID).");
         return;
       }
     } else {
-      const chosen = colleges.find((c) => c.clgId === collegeChoice);
-      collegeCode = (chosen?.yagId || "").trim();
-      collegeName = chosen?.clgName || "";
+      collegeCode = formData.collegeCode.trim();
+      if (!collegeCode) {
+        setApiError("Please enter your YagnaTech ID, or choose Others to type your college name.");
+        return;
+      }
+      collegeName = matchedCollege?.clgName || "";
     }
 
     try {
@@ -320,35 +331,42 @@ return (
                       />
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="college">College (YagnaTech ID)</Label>
-                      <Select
-                        value={collegeChoice}
-                        onValueChange={(value) => setCollegeChoice(value)}
-                        disabled={loading}
-                      >
-                        <SelectTrigger id="college">
-                          <SelectValue placeholder="Select your college" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {colleges.map((c) => (
-                            <SelectItem key={c.clgId} value={c.clgId}>
-                              {c.clgName}
-                              {c.yagId ? ` — ${c.yagId}` : ""}
-                            </SelectItem>
-                          ))}
-                          <SelectItem value="other">Others</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Pick your college (its YagnaTech ID is shown next to the name).
-                        Not listed? Choose <strong>Others</strong> and type your college name.
-                      </p>
-                    </div>
-
-                    {collegeChoice === "other" && (
+                    {!isOther ? (
                       <div className="space-y-2">
-                        <Label htmlFor="collegeName">College Name</Label>
+                        <Label htmlFor="collegeCode">YagnaTech ID</Label>
+                        <Input
+                          id="collegeCode"
+                          placeholder="Enter your YagnaTech ID (e.g. AB12)"
+                          maxLength={4}
+                          value={formData.collegeCode}
+                          onChange={(e) => handleInputChange("collegeCode", e.target.value.toUpperCase())}
+                          disabled={loading}
+                          className="uppercase placeholder:normal-case"
+                        />
+                        {/* Resolve + show the matched college name as they type. */}
+                        {formData.collegeCode.trim() && (
+                          matchedCollege ? (
+                            <p className="text-xs font-medium text-[#177385]">
+                              ✓ {matchedCollege.clgName}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-amber-600">
+                              No college found for this YagnaTech ID.
+                            </p>
+                          )
+                        )}
+                        <button
+                          type="button"
+                          className="text-xs text-[#177385] underline underline-offset-2"
+                          onClick={() => { setIsOther(true); handleInputChange("collegeCode", ""); }}
+                          disabled={loading}
+                        >
+                          Don't have a YagnaTech ID? Choose Others
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label htmlFor="collegeName">College Name (Others)</Label>
                         <Input
                           id="collegeName"
                           placeholder="College / Institution name"
@@ -356,6 +374,14 @@ return (
                           onChange={(e) => handleInputChange("collegeName", e.target.value)}
                           disabled={loading}
                         />
+                        <button
+                          type="button"
+                          className="text-xs text-[#177385] underline underline-offset-2"
+                          onClick={() => { setIsOther(false); handleInputChange("collegeName", ""); }}
+                          disabled={loading}
+                        >
+                          Have a YagnaTech ID? Enter it instead
+                        </button>
                       </div>
                     )}
 
