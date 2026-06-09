@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { CollegeContext } from "@/context/CollegeContext";
@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { BookOpen, Eye, EyeOff, Mail, Lock, User, ArrowLeft, Users, Award, Globe } from "lucide-react";
+import { BookOpen, Eye, EyeOff, Mail, Lock, User, ArrowLeft, Users, Award, Globe, ChevronDown, Check } from "lucide-react";
 import Logo from "@/assets/YagnaTechWM.png";
 
 const Signup = () => {
@@ -39,6 +39,24 @@ const Signup = () => {
   // otherwise it's the matched college's clgId (the college only appears in the
   // dropdown once a valid YagnaTech ID is entered).
   const [collegeChoice, setCollegeChoice] = useState<string>("other");
+  // Combobox open state + outside-click close for the college picker.
+  const [collegeOpen, setCollegeOpen] = useState(false);
+  const collegeBoxRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!collegeOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (collegeBoxRef.current && !collegeBoxRef.current.contains(e.target as Node)) {
+        setCollegeOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setCollegeOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [collegeOpen]);
 
   const collegeCtx = useContext(CollegeContext);
   const colleges = collegeCtx?.colleges ?? [];
@@ -54,13 +72,12 @@ const Signup = () => {
     return colleges.find((c) => (c.yagId || "").toUpperCase() === code) || null;
   })();
 
-  // When a YagnaTech ID resolves to a college, auto-select it in the dropdown;
-  // when the code is cleared or stops matching, fall back to "Others".
-  useEffect(() => {
-    if (matchedCollege) setCollegeChoice(matchedCollege.clgId);
-    else setCollegeChoice("other");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchedCollege?.clgId]);
+  // The college currently selected (for the closed-state label). "other" or a
+  // matched clgId.
+  const selectedCollegeLabel =
+    collegeChoice === "other"
+      ? "Others"
+      : (matchedCollege?.clgName || "Select your college");
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -338,46 +355,72 @@ return (
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="collegeCode">YagnaTech ID</Label>
-                      <Input
-                        id="collegeCode"
-                        placeholder="Enter your YagnaTech ID (e.g. AB12)"
-                        maxLength={4}
-                        value={formData.collegeCode}
-                        onChange={(e) => handleInputChange("collegeCode", e.target.value.toUpperCase())}
-                        disabled={loading}
-                        className="uppercase placeholder:normal-case"
-                      />
-                      {formData.collegeCode.trim() && !matchedCollege && (
-                        <p className="text-xs text-amber-600">
-                          No college found for this YagnaTech ID. Pick “Others” below
-                          to enter your college name.
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
                       <Label htmlFor="college">College</Label>
-                      <Select
-                        value={collegeChoice}
-                        onValueChange={(value) => setCollegeChoice(value)}
-                        disabled={loading}
-                      >
-                        <SelectTrigger id="college">
-                          <SelectValue placeholder="Select your college" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {/* The matched college only appears once a valid
-                              YagnaTech ID is entered. */}
-                          {matchedCollege && (
-                            <SelectItem value={matchedCollege.clgId}>
-                              {matchedCollege.clgName}
-                              {matchedCollege.yagId ? ` — ${matchedCollege.yagId}` : ""}
-                            </SelectItem>
-                          )}
-                          <SelectItem value="other">Others</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      {/* Single combobox: open it, type your YagnaTech ID in the
+                          search box. The list shows ONLY 'Others' until the code
+                          matches a college, which then appears to select. */}
+                      <div className="relative" ref={collegeBoxRef}>
+                        <button
+                          type="button"
+                          id="college"
+                          disabled={loading}
+                          onClick={() => setCollegeOpen((v) => !v)}
+                          className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-left disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <span className={collegeChoice === "other" ? "" : "text-dark"}>
+                            {selectedCollegeLabel}
+                          </span>
+                          <ChevronDown className="h-4 w-4 opacity-60" />
+                        </button>
+
+                        {collegeOpen && !loading && (
+                          <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-white shadow-lg">
+                            <div className="p-2 border-b border-border">
+                              <Input
+                                autoFocus
+                                placeholder="Enter your YagnaTech ID (e.g. AB12)"
+                                maxLength={4}
+                                value={formData.collegeCode}
+                                onChange={(e) => handleInputChange("collegeCode", e.target.value.toUpperCase())}
+                                className="h-9 uppercase placeholder:normal-case"
+                              />
+                              {formData.collegeCode.trim() && !matchedCollege && (
+                                <p className="mt-1 text-xs text-amber-600">
+                                  No college found for this YagnaTech ID.
+                                </p>
+                              )}
+                            </div>
+                            <ul className="max-h-56 overflow-y-auto py-1 text-sm">
+                              {/* Matched college appears only when the ID resolves. */}
+                              {matchedCollege && (
+                                <li>
+                                  <button
+                                    type="button"
+                                    onClick={() => { setCollegeChoice(matchedCollege.clgId); setCollegeOpen(false); }}
+                                    className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-[#177385]/10"
+                                  >
+                                    <span className="truncate">
+                                      {matchedCollege.clgName}
+                                      <span className="ml-1 text-xs font-semibold text-[#177385]">{matchedCollege.yagId}</span>
+                                    </span>
+                                    {collegeChoice === matchedCollege.clgId && <Check className="h-4 w-4 text-[#177385]" />}
+                                  </button>
+                                </li>
+                              )}
+                              <li>
+                                <button
+                                  type="button"
+                                  onClick={() => { setCollegeChoice("other"); handleInputChange("collegeCode", ""); setCollegeOpen(false); }}
+                                  className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-[#177385]/10"
+                                >
+                                  <span>Others</span>
+                                  {collegeChoice === "other" && <Check className="h-4 w-4 text-[#177385]" />}
+                                </button>
+                              </li>
+                            </ul>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {collegeChoice === "other" && (
