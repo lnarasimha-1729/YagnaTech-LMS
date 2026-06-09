@@ -141,7 +141,11 @@ export async function getActivePreAssessment(req, res) {
     const pre = pres.find(matchesCollege) || pres[0];
 
     const qs = await QuestionSet.findByPk(pre.setId);
-    const questionCount = qs && Array.isArray(qs.questions) ? qs.questions.length : 0;
+    const setSize = qs && Array.isArray(qs.questions) ? qs.questions.length : 0;
+    // questionCount is what the STUDENT actually receives: the per-student count
+    // when configured (capped at the set size), else the full set.
+    const qps = Number(pre.questionsPerStudent);
+    const questionCount = Number.isInteger(qps) && qps > 0 ? Math.min(qps, setSize) : setSize;
 
     return res.json({
       assessmentId: pre.assessmentId,
@@ -149,6 +153,8 @@ export async function getActivePreAssessment(req, res) {
       timer: pre.timer,
       status: pre.status,
       questionCount,
+      questionsPerStudent: pre.questionsPerStudent ?? null,
+      setSize,
     });
   } catch (err) {
     console.error("Error fetching active pre-assessment:", err);
