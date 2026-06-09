@@ -32,3 +32,21 @@ exports.programs = asyncHandler(async (req, res) => {
     }
     res.json({ programs: await service.getProgramsForCollege({ collegeId }) });
 });
+
+// Pending student signup requests for this college.
+exports.studentRequests = asyncHandler(async (req, res) => {
+    const collegeId = req.user?.college_id;
+    if (!collegeId) {
+        throw new HttpError(403, 'College Dashboard is only available to college admins');
+    }
+    res.json({ requests: await service.getStudentRequests({ collegeId }) });
+});
+
+// Approve a pending student request for this college.
+exports.approveStudentRequest = asyncHandler(async (req, res) => {
+    const collegeId = req.user?.college_id;
+    if (!collegeId) {
+        throw new HttpError(403, 'College Dashboard is only available to college admins');
+    }
+    res.json(await service.approveStudentRequest({ collegeId, userId: req.params.userId }));
+});

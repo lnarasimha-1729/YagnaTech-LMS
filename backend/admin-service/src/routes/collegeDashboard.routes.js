@@ -8,5 +8,8 @@ router.get('/college-dashboard/stats', ctrl.stats);
 router.get('/college-dashboard/courses', ctrl.courses);
 // Programs assigned to the caller's college (read-only).
 router.get('/college-dashboard/programs', ctrl.programs);
+// Pending student signup requests for the caller's college + approve.
+router.get('/college-dashboard/student-requests', ctrl.studentRequests);
+router.post('/college-dashboard/student-requests/:userId/approve', ctrl.approveStudentRequest);
 
 module.exports = router;

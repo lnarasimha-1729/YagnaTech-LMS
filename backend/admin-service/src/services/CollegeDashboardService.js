@@ -281,4 +281,54 @@ const getProgramsForCollege = async ({ collegeId }) => {
     });
 };
 
-module.exports = { getStats, getCoursesForCollege, getProgramsForCollege };
+// Students who signed up for this college and are awaiting approval
+// (auth users.profileStatus = 'pending'). Returns their signup details so the
+// college admin can review and approve.
+const getStudentRequests = async ({ collegeId }) => {
+    if (!collegeId) throw new HttpError(400, 'College admin profile is missing a college_id');
+    const filter = String(collegeId).trim();
+    const rows = await authDb.query(
+        `SELECT u.userId, u.name, u.email, u.phone, u.gender, u.dob,
+                u.collegeName, u.branch, u.educationLevel, u.graduationYear,
+                u.profileStatus, u.createdAt
+           FROM users u
+           JOIN roles r ON r.roleId = u.roleId
+          WHERE LOWER(TRIM(u.collegeId)) = LOWER(:filter)
+            AND r.role = 'student'
+            AND u.profileStatus = 'pending'
+          ORDER BY u.createdAt DESC`,
+        { replacements: { filter }, type: QueryTypes.SELECT }
+    );
+    return rows;
+};
+
+// Approve a pending student request for THIS college: flip profileStatus to
+// 'active'. Scoped to the caller's college so an admin can't approve another
+// college's students. Returns the number of rows updated (0 = not found/not
+// this college/not pending).
+const approveStudentRequest = async ({ collegeId, userId }) => {
+    if (!collegeId) throw new HttpError(400, 'College admin profile is missing a college_id');
+    if (!userId) throw new HttpError(400, 'userId is required');
+    const filter = String(collegeId).trim();
+    const [, meta] = await authDb.query(
+        `UPDATE users u
+            JOIN roles r ON r.roleId = u.roleId
+            SET u.profileStatus = 'active', u.updatedAt = NOW()
+          WHERE u.userId = :userId
+            AND r.role = 'student'
+            AND LOWER(TRIM(u.collegeId)) = LOWER(:filter)
+            AND u.profileStatus = 'pending'`,
+        { replacements: { userId: String(userId), filter }, type: QueryTypes.UPDATE }
+    );
+    const affected = meta && typeof meta.affectedRows === 'number' ? meta.affectedRows : meta;
+    if (!affected) throw new HttpError(404, 'No pending request found for this student in your college');
+    return { approved: true, userId };
+};
+
+module.exports = {
+    getStats,
+    getCoursesForCollege,
+    getProgramsForCollege,
+    getStudentRequests,
+    approveStudentRequest,
+};

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { getCollegeStats, getCollegeCourses, getCollegePrograms } from '../../api/collegeDashboard';
+import { getCollegeStats, getCollegeCourses, getCollegePrograms, getStudentRequests, approveStudentRequest } from '../../api/collegeDashboard';
+import { toast } from 'react-toastify';
 import { listStudents } from '../../api/student';
 import { getStoredUser } from '../../api/auth';
 import BatchForm from './BatchForm';
@@ -85,7 +86,7 @@ const downloadStudentsCsv = (students, collegeName) => {
 // Which tab is showing is driven by ?tab= in the URL — the sidebar's
 // Batches dropdown deep-links here with these keys. The header tab strip
 // was removed at the admin's request; the sidebar is now the only nav.
-const VALID_TABS = ['dashboard', 'add-batch', 'manage-batches', 'assigned-courses', 'assigned-programs'];
+const VALID_TABS = ['dashboard', 'add-batch', 'manage-batches', 'assigned-courses', 'assigned-programs', 'student-requests'];
 
 export default function CollegeDashboardPage() {
     const [params, setParams] = useSearchParams();
@@ -129,6 +130,7 @@ export default function CollegeDashboardPage() {
             {tab === 'manage-batches' && <ManageBatches refreshKey={batchesRefreshKey} />}
             {tab === 'assigned-courses' && <AssignedCoursesTable />}
             {tab === 'assigned-programs' && <AssignedProgramsTable />}
+            {tab === 'student-requests' && <StudentRequestsTable />}
         </div>
     );
 }
@@ -605,6 +607,127 @@ function AssignedCoursesTable() {
                                         </td>
                                         <td>{c.lesson_count ?? 0}</td>
                                         <td>{c.enrolled ?? 0}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ── Student Requests tab ───────────────────────────────────────────────────
+// Students who signed up for this college and are awaiting approval
+// (auth users.profileStatus = 'pending'). The admin reviews their signup
+// details and approves (-> profileStatus 'active').
+function StudentRequestsTable() {
+    const [rows, setRows] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [approvingId, setApprovingId] = useState(null);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const data = await getStudentRequests();
+            setRows(Array.isArray(data?.requests) ? data.requests : []);
+        } catch (err) {
+            const status = err?.response?.status;
+            const message = err?.response?.data?.error || err?.message || 'Failed to load requests';
+            setError(status ? `${status} — ${message}` : message);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => { load(); }, [load]);
+
+    const approve = async (userId, name) => {
+        setApprovingId(userId);
+        try {
+            await approveStudentRequest(userId);
+            toast.success(`Approved ${name || 'student'}`);
+            // Remove from the pending list.
+            setRows((prev) => prev.filter((r) => r.userId !== userId));
+        } catch (err) {
+            toast.error(err?.response?.data?.error || 'Failed to approve');
+        } finally {
+            setApprovingId(null);
+        }
+    };
+
+    return (
+        <div className="ol-card rounded-ol-8">
+            <div className="ol-card-body py-12px px-20px my-3">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                    <h4 className="text-[16px] font-semibold text-dark m-0 flex items-center gap-2">
+                        <i className="fi-rr-user-add" />
+                        Student Requests{' '}
+                        <span className="text-muted font-normal">({rows.length})</span>
+                    </h4>
+                    <button
+                        type="button"
+                        className="ol-btn-outline-secondary text-[13px] px-3 py-1 disabled:opacity-50"
+                        onClick={load}
+                        disabled={loading}
+                    >
+                        {loading ? 'Refreshing…' : 'Refresh'}
+                    </button>
+                </div>
+
+                {loading ? (
+                    <div className="py-10 text-center text-[13px] text-gray">Loading requests…</div>
+                ) : error ? (
+                    <div className="py-10 text-center">
+                        <p className="text-[14px] text-danger mb-3">{error}</p>
+                        <button className="ol-btn-primary" onClick={load}>Retry</button>
+                    </div>
+                ) : rows.length === 0 ? (
+                    <div className="py-10 text-center border border-dashed border-border rounded-ol-8 mt-3">
+                        <p className="text-[14px] text-gray m-0">No pending student requests.</p>
+                    </div>
+                ) : (
+                    <div className="w-full max-w-full min-w-0 overflow-x-auto mt-3">
+                        <table className="e-table w-full">
+                            <thead>
+                                <tr>
+                                    <th className="w-[60px]">#</th>
+                                    <th>Name</th>
+                                    <th>Email</th>
+                                    <th>Phone</th>
+                                    <th>Branch</th>
+                                    <th>Education</th>
+                                    <th>Grad. Year</th>
+                                    <th>Requested</th>
+                                    <th className="w-[120px]">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {rows.map((s, i) => (
+                                    <tr key={s.userId}>
+                                        <td>{i + 1}</td>
+                                        <td className="font-semibold text-dark">{s.name || '—'}</td>
+                                        <td>{s.email || '—'}</td>
+                                        <td>{s.phone || '—'}</td>
+                                        <td>{s.branch || '—'}</td>
+                                        <td>{s.educationLevel || '—'}</td>
+                                        <td>{s.graduationYear || '—'}</td>
+                                        <td className="text-[12px] text-gray">
+                                            {s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '—'}
+                                        </td>
+                                        <td>
+                                            <button
+                                                type="button"
+                                                className="ol-btn-primary text-[12px] px-3 py-1 disabled:opacity-50"
+                                                onClick={() => approve(s.userId, s.name)}
+                                                disabled={approvingId === s.userId}
+                                            >
+                                                {approvingId === s.userId ? 'Approving…' : 'Approve'}
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>

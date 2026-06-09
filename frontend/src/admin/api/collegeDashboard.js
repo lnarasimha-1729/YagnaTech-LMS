@@ -18,3 +18,10 @@ export const getCollegeCourses = () =>
 // { programs: [{ id, title, status, courses[], batches[], enrolled }] }.
 export const getCollegePrograms = () =>
     api.get('/college-dashboard/programs').then((r) => r.data);
+
+// Pending student signup requests for this college, and approve one.
+export const getStudentRequests = () =>
+    api.get('/college-dashboard/student-requests').then((r) => r.data);
+
+export const approveStudentRequest = (userId) =>
+    api.post(`/college-dashboard/student-requests/${userId}/approve`).then((r) => r.data);
