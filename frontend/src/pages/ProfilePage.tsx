@@ -209,11 +209,13 @@ function CollegeYagIdPicker({
   value,
   onChange,
   disabled,
+  fallbackLabel,
 }: {
   colleges: College[];
   value: string; // selected clgId
   onChange: (clgId: string) => void;
   disabled?: boolean;
+  fallbackLabel?: string; // free-text "Others" college name (no clgId)
 }) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
@@ -252,10 +254,13 @@ function CollegeYagIdPicker({
     setOpen(false);
   };
 
+  // Show the filled-in summary for a selected college OR a free-text "Others"
+  // name (fallbackLabel), so the value appears INSIDE the field.
+  const showSummary = (selected || fallbackLabel) && !open;
   return (
     <div className="relative" ref={containerRef}>
-      {selected && !open ? (
-        // Compact summary of the chosen college; click to change (when editing).
+      {showSummary ? (
+        // Compact summary of the chosen / entered college; click to change.
         <button
           type="button"
           disabled={disabled}
@@ -267,8 +272,8 @@ function CollegeYagIdPicker({
           )}
         >
           <span className="flex-1 truncate">
-            {selected.clgName}
-            {selected.yagId && (
+            {selected ? selected.clgName : fallbackLabel}
+            {selected?.yagId && (
               <span className="ml-2 text-xs font-semibold text-[#177385]">
                 {selected.yagId}
               </span>
@@ -722,6 +727,12 @@ const ProfilePage = () => {
                 }
                 onChange={(clgId) => handleInputChange('college', clgId)}
                 disabled={!isEditing}
+                fallbackLabel={
+                  // "Others" college: no clgId, show the typed name inside the field.
+                  !formData.college || !colleges.some((c) => c.clgId === formData.college)
+                    ? (user?.collegeName || undefined)
+                    : undefined
+                }
               />
               {isEditing &&
                 formData.college &&
@@ -730,14 +741,6 @@ const ProfilePage = () => {
                     Your previous college is no longer available. Please pick a new one.
                   </p>
                 )}
-              {/* "Others" college: the student typed a free-text college name at
-                  signup (no YagnaTech ID / collegeId). Show it so their entry is
-                  visible; they can still pick a listed college above to link one. */}
-              {!formData.college && user?.collegeName && (
-                <p className="text-sm text-gray-700">
-                  College (entered): <span className="font-medium">{user.collegeName}</span>
-                </p>
-              )}
               {isEditing && colleges.length === 0 && !formData.college && (
                 <p className="text-xs text-amber-700">
                   No colleges loaded. Ask the admin to add your college first.
