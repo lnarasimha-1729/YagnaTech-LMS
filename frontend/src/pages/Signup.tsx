@@ -320,14 +320,20 @@ return (
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="collegeCode">College Code</Label>
+                        <Label htmlFor="collegeCode">YagnaTech ID</Label>
                         <Input
                           id="collegeCode"
-                          placeholder="Enter college code"
+                          placeholder="Enter your YagnaTech ID (e.g. AB12)"
+                          maxLength={4}
                           value={formData.collegeCode}
-                          onChange={(e) => handleInputChange("collegeCode", e.target.value)}
+                          onChange={(e) => handleInputChange("collegeCode", e.target.value.toUpperCase())}
                           disabled={loading}
+                          className="uppercase placeholder:normal-case"
                         />
+                        <p className="text-xs text-muted-foreground">
+                          Your college's 4-character code. Don't have one? Choose
+                          “Other” and type your college name above.
+                        </p>
                       </div>
                     </div>
                   </div>

@@ -187,6 +187,29 @@ export async function register(req, res) {
       return res.status(400).json({ message: 'Invalid role' });
     }
 
+    // Resolve the YagnaTech ID (college code / yagId) to a real college so the
+    // student is LINKED to it (collegeId is what the profile + the rest of the
+    // app key on). When the code matches, we also adopt the college's canonical
+    // name. When it doesn't match (or "Other" — no code, free-text name), we
+    // keep the typed collegeName and leave collegeId null.
+    let resolvedCollegeId = null;
+    let resolvedCollegeName = data.collegeName || null;
+    const code = (data.collegeCode || '').trim();
+    if (code) {
+      try {
+        const [row] = await sequelize.query(
+          'SELECT clgId, clgName FROM colleges WHERE UPPER(TRIM(yagId)) = UPPER(:code) LIMIT 1',
+          { replacements: { code }, type: QueryTypes.SELECT }
+        );
+        if (row) {
+          resolvedCollegeId = row.clgId;
+          resolvedCollegeName = row.clgName || resolvedCollegeName;
+        }
+      } catch (e) {
+        console.warn('[register] college code lookup skipped:', e.message);
+      }
+    }
+
     // Create user
     const user = await User.create({
       userId: generateUserID(),
@@ -200,9 +223,12 @@ export async function register(req, res) {
       // Academic Information (optional — stored only if provided)
       educationLevel: data.educationLevel || null,
       branch: data.branch || null,
-      collegeName: data.collegeName || null,
+      collegeName: resolvedCollegeName,
       graduationYear: data.graduationYear || null,
-      collegeCode: data.collegeCode || null
+      collegeCode: code || null,
+      // Linked college id (resolved from the YagnaTech ID) so the profile and
+      // dashboards pick it up automatically. Null for "Other" / unmatched codes.
+      collegeId: resolvedCollegeId
     });
 
     const result = await issueTokens(user, res);
