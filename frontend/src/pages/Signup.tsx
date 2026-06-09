@@ -38,7 +38,9 @@ const Signup = () => {
   // College dropdown selection: "other" (default) shows a free-text name box;
   // otherwise it's the matched college's clgId (the college only appears in the
   // dropdown once a valid YagnaTech ID is entered).
-  const [collegeChoice, setCollegeChoice] = useState<string>("other");
+  // Empty by default — the student is prompted to enter their YagnaTech ID
+  // first; "other" is only set when they explicitly choose Others.
+  const [collegeChoice, setCollegeChoice] = useState<string>("");
   // Combobox open state + outside-click close for the college picker.
   const [collegeOpen, setCollegeOpen] = useState(false);
   const collegeBoxRef = useRef<HTMLDivElement>(null);
@@ -77,7 +79,9 @@ const Signup = () => {
   const selectedCollegeLabel =
     collegeChoice === "other"
       ? "Others"
-      : (matchedCollege?.clgName || "Select your college");
+      : collegeChoice && matchedCollege
+        ? matchedCollege.clgName
+        : "Enter your YagnaTech ID";
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -114,14 +118,18 @@ const Signup = () => {
     if (collegeChoice === "other") {
       collegeName = formData.collegeName.trim();
       if (!collegeName) {
-        setApiError("Please enter your college name, or enter a valid YagnaTech ID and select your college.");
+        setApiError("Please enter your college name.");
         return;
       }
-    } else {
+    } else if (collegeChoice && matchedCollege) {
       // A matched college is selected — send its YagnaTech ID so the backend
       // links collegeId + canonical name.
-      collegeCode = (matchedCollege?.yagId || formData.collegeCode).trim();
-      collegeName = matchedCollege?.clgName || "";
+      collegeCode = (matchedCollege.yagId || formData.collegeCode).trim();
+      collegeName = matchedCollege.clgName || "";
+    } else {
+      // Nothing chosen yet.
+      setApiError("Please enter your YagnaTech ID and select your college, or choose Others.");
+      return;
     }
 
     try {
@@ -367,7 +375,7 @@ return (
                           onClick={() => setCollegeOpen((v) => !v)}
                           className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-left disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          <span className={collegeChoice === "other" ? "" : "text-dark"}>
+                          <span className={collegeChoice ? "text-dark" : "text-muted-foreground"}>
                             {selectedCollegeLabel}
                           </span>
                           <ChevronDown className="h-4 w-4 opacity-60" />
