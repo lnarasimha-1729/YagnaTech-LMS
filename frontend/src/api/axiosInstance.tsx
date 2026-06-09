@@ -1,7 +1,16 @@
 import axios from 'axios';
 
+// Empty / unset → use a RELATIVE base ("/api/v1") so calls inherit the page's
+// scheme + host (e.g. https://yagnatech.org). This avoids mixed-content errors
+// when the site is served over HTTPS but an absolute http:// IP was baked in.
+// Only an explicit absolute value (http(s)://…) is used as-is; "localhost"
+// stays the dev default when nothing is configured AND we're on localhost.
+const RAW_BASTION = (import.meta.env.VITE_BASTION_API_URL ?? '').trim();
 const BASTION_BASE: string =
-  import.meta.env.VITE_BASTION_API_URL ?? 'http://localhost:8000';
+  RAW_BASTION ||
+  (typeof window !== 'undefined' && window.location.hostname === 'localhost'
+    ? 'http://localhost:8000'
+    : ''); // relative on any deployed host
 
 const axiosInstance = axios.create({
   baseURL: `${BASTION_BASE}/api/v1`,
