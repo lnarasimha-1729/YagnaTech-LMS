@@ -24,6 +24,8 @@ export default function AssessmentForm({ initial, onSubmit, submitting, mode = '
     // When on, the backend serves the question list in a per-student
     // deterministic random order (seeded by userId + assessmentId).
     const [shuffleQuestions, setShuffleQuestions] = useState(false);
+    // How many questions each student is randomly served from the set.
+    const [questionsPerStudent, setQuestionsPerStudent] = useState('');
 
     const [sets, setSets] = useState([]);
     const [setsLoading, setSetsLoading] = useState(true);
@@ -47,6 +49,9 @@ export default function AssessmentForm({ initial, onSubmit, submitting, mode = '
             Array.isArray(initial.courseIds) ? initial.courseIds.map(String) : []
         );
         setShuffleQuestions(!!initial.shuffleQuestions);
+        setQuestionsPerStudent(
+            initial.questionsPerStudent != null ? String(initial.questionsPerStudent) : ''
+        );
         // sequelize returns ISO; <input type="datetime-local"> wants YYYY-MM-DDTHH:mm.
         if (initial.startAt) {
             try {
@@ -95,6 +100,16 @@ export default function AssessmentForm({ initial, onSubmit, submitting, mode = '
         const totalScore = Number(score);
         if (!Number.isFinite(totalScore) || totalScore <= 0) return setError('Score must be a positive number');
 
+        // Questions per student: required, positive integer, <= set size.
+        const qps = Number(questionsPerStudent);
+        if (!Number.isInteger(qps) || qps < 1) {
+            return setError('Questions per student is required and must be a positive whole number');
+        }
+        const setSize = selectedSet && Array.isArray(selectedSet.questions) ? selectedSet.questions.length : 0;
+        if (setSize && qps > setSize) {
+            return setError(`Questions per student (${qps}) cannot exceed the set size (${setSize})`);
+        }
+
         onSubmit({
             assessmentId: assessmentId.trim(),
             type,
@@ -106,6 +121,7 @@ export default function AssessmentForm({ initial, onSubmit, submitting, mode = '
             clgIds: selectedClgIds,
             courseIds: selectedCourseIds,
             shuffleQuestions,
+            questionsPerStudent: qps,
         });
     };
 
@@ -266,6 +282,29 @@ export default function AssessmentForm({ initial, onSubmit, submitting, mode = '
                         ))}
                     </select>
                 </div>
+            </div>
+
+            <div>
+                <label className="block text-[13px] font-semibold text-dark mb-1">
+                    Questions per student <span className="text-danger">*</span>
+                </label>
+                <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    max={selectedSet && Array.isArray(selectedSet.questions) ? selectedSet.questions.length : undefined}
+                    className="ol-form-control w-full"
+                    value={questionsPerStudent}
+                    onChange={(e) => setQuestionsPerStudent(e.target.value)}
+                    placeholder="e.g. 20"
+                />
+                <p className="text-[12px] text-gray mt-1">
+                    Each student receives this many questions, randomly selected from the set
+                    (the same set per student across refreshes).
+                    {selectedSet && Array.isArray(selectedSet.questions)
+                        ? ` This set has ${selectedSet.questions.length} questions.`
+                        : ''}
+                </p>
             </div>
 
             <div>

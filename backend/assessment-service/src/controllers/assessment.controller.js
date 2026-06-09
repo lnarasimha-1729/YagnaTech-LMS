@@ -88,6 +88,17 @@ export async function addAssessment(req, res) {
     const qs = await QuestionSet.findByPk(setId);
     if (!qs) return res.status(400).json({ message: "QuestionSet not found" });
 
+    // questionsPerStudent: required, must be a positive integer, and cannot
+    // exceed the number of questions in the chosen set.
+    const setSize = Array.isArray(qs.questions) ? qs.questions.length : 0;
+    const qps = Number(req.body.questionsPerStudent);
+    if (!Number.isInteger(qps) || qps < 1) {
+      return res.status(400).json({ message: "Questions per student is required and must be a positive whole number" });
+    }
+    if (qps > setSize) {
+      return res.status(400).json({ message: `Questions per student (${qps}) cannot exceed the question set size (${setSize})` });
+    }
+
     const assessment = await Assessment.create({
       assessmentId,
       type,
@@ -98,7 +109,8 @@ export async function addAssessment(req, res) {
       status,
       clgIds,
       courseIds,
-      shuffleQuestions: toBool(req.body.shuffleQuestions, false)
+      shuffleQuestions: toBool(req.body.shuffleQuestions, false),
+      questionsPerStudent: qps
     });
 
     res.status(201).json(assessment);
@@ -198,10 +210,20 @@ export async function getAssessmentById(req, res) {
     // userId + assessmentId so refreshes stay consistent). Admins keep the
     // canonical order so the preview matches the QuestionSet config.
     const isAdmin = req.user?.role === 'admin';
-    if (assessment.shuffleQuestions && !isAdmin && questions.length > 1) {
-      const userId = req.user?.userId || req.user?.id || '';
-      if (userId) {
+    const userId = req.user?.userId || req.user?.id || '';
+    if (!isAdmin && userId && questions.length > 1) {
+      // Per-student randomization seeded by userId so it's stable across
+      // refreshes. We seed-shuffle when EITHER the admin enabled shuffle OR a
+      // per-student question count is set (the count needs a random pick, not
+      // just the first N). Admins always see the canonical full set.
+      const needsRandom = assessment.shuffleQuestions || Number(assessment.questionsPerStudent) > 0;
+      if (needsRandom) {
         questions = shuffleWithSeed(questions, `${userId}|${assessment.assessmentId}`);
+      }
+      // Limit to the per-student count (random subset, stable per student).
+      const n = Number(assessment.questionsPerStudent);
+      if (Number.isInteger(n) && n > 0 && n < questions.length) {
+        questions = questions.slice(0, n);
       }
     }
 
@@ -242,6 +264,22 @@ export async function updateAssessment(req, res) {
     }
     if (Object.prototype.hasOwnProperty.call(updates, 'shuffleQuestions')) {
       updates.shuffleQuestions = toBool(updates.shuffleQuestions, assessment.shuffleQuestions);
+    }
+    // Validate questionsPerStudent (required, positive, <= set size) whenever
+    // the caller sends it. Use the new setId if it's being changed, else the
+    // existing one.
+    if (Object.prototype.hasOwnProperty.call(updates, 'questionsPerStudent')) {
+      const qps = Number(updates.questionsPerStudent);
+      if (!Number.isInteger(qps) || qps < 1) {
+        return res.status(400).json({ message: "Questions per student is required and must be a positive whole number" });
+      }
+      const effectiveSetId = updates.setId || assessment.setId;
+      const qs = await QuestionSet.findByPk(effectiveSetId);
+      const setSize = qs && Array.isArray(qs.questions) ? qs.questions.length : 0;
+      if (qps > setSize) {
+        return res.status(400).json({ message: `Questions per student (${qps}) cannot exceed the question set size (${setSize})` });
+      }
+      updates.questionsPerStudent = qps;
     }
 
     await assessment.update(updates);

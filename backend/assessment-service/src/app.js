@@ -599,6 +599,23 @@ export async function initDb() {
     console.warn('[assessments] shuffleQuestions migration skipped:', e.message);
   }
 
+  // assessments.questionsPerStudent — how many questions each student receives,
+  // randomly sampled (seeded per student) from the set. sequelize.sync() won't
+  // add it to the existing table, so add it on the fly like shuffleQuestions.
+  try {
+    const { QueryTypes } = await import('sequelize');
+    const cols = await sequelize.query('DESCRIBE assessments', { type: QueryTypes.SELECT });
+    const hasQps = cols.some((c) => c.Field === 'questionsPerStudent');
+    if (!hasQps) {
+      await sequelize.query(
+        'ALTER TABLE assessments ADD COLUMN questionsPerStudent INT NULL'
+      );
+      console.log('🛠️  Added assessments.questionsPerStudent column');
+    }
+  } catch (e) {
+    console.warn('[assessments] questionsPerStudent migration skipped:', e.message);
+  }
+
   await seedPreAssessment();
   await seedPostAssessment();
   console.log('🗄️  Database connected and synced---');

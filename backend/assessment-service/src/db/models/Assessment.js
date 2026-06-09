@@ -63,6 +63,13 @@ const Assessment = sequelize.define("Assessment", {
     type: DataTypes.BOOLEAN,
     allowNull: false,
     defaultValue: false
+  },
+  // How many questions each student actually receives, randomly sampled from
+  // the set (seeded per student so it's stable across refreshes). null = serve
+  // the whole set. Must be <= the set's question count (validated on save).
+  questionsPerStudent: {
+    type: DataTypes.INTEGER,
+    allowNull: true
   }
 }, {
   tableName: "assessments",
