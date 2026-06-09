@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { CollegeContext } from "@/context/CollegeContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,13 @@ const Signup = () => {
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [apiSuccess, setApiSuccess] = useState<string | null>(null);
+  // College selection: "other" (default) shows a free-text college-name box;
+  // any other value is the chosen college's clgId (its yagId is sent as the
+  // YagnaTech ID / college code so the backend links the account to it).
+  const [collegeChoice, setCollegeChoice] = useState<string>("other");
+
+  const collegeCtx = useContext(CollegeContext);
+  const colleges = collegeCtx?.colleges ?? [];
 
   const { registerUser, loading } = useAuth();
   const navigate = useNavigate();
@@ -64,6 +72,24 @@ const Signup = () => {
       return;
     }
 
+    // Resolve the college choice into what the backend expects:
+    //  - a real college selected -> send its yagId as collegeCode (backend
+    //    links collegeId + canonical name).
+    //  - "other" -> send the typed collegeName, no code.
+    let collegeCode = "";
+    let collegeName = "";
+    if (collegeChoice === "other") {
+      collegeName = formData.collegeName.trim();
+      if (!collegeName) {
+        setApiError("Please enter your college name (or pick your college from the list).");
+        return;
+      }
+    } else {
+      const chosen = colleges.find((c) => c.clgId === collegeChoice);
+      collegeCode = (chosen?.yagId || "").trim();
+      collegeName = chosen?.clgName || "";
+    }
+
     try {
       const payload = {
         name: `${formData.firstName} ${formData.lastName}`.trim(),
@@ -75,9 +101,9 @@ const Signup = () => {
         // Academic Information — send only non-empty values
         ...(formData.educationLevel && { educationLevel: formData.educationLevel }),
         ...(formData.branch.trim() && { branch: formData.branch.trim() }),
-        ...(formData.collegeName.trim() && { collegeName: formData.collegeName.trim() }),
+        ...(collegeName && { collegeName }),
         ...(formData.graduationYear.trim() && { graduationYear: formData.graduationYear.trim() }),
-        ...(formData.collegeCode.trim() && { collegeCode: formData.collegeCode.trim() })
+        ...(collegeCode && { collegeCode })
       };
 
       await registerUser(payload);
@@ -295,46 +321,55 @@ return (
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="collegeName">College Name</Label>
-                      <Input
-                        id="collegeName"
-                        placeholder="College / Institution name"
-                        value={formData.collegeName}
-                        onChange={(e) => handleInputChange("collegeName", e.target.value)}
+                      <Label htmlFor="college">College (YagnaTech ID)</Label>
+                      <Select
+                        value={collegeChoice}
+                        onValueChange={(value) => setCollegeChoice(value)}
                         disabled={loading}
-                      />
+                      >
+                        <SelectTrigger id="college">
+                          <SelectValue placeholder="Select your college" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {colleges.map((c) => (
+                            <SelectItem key={c.clgId} value={c.clgId}>
+                              {c.clgName}
+                              {c.yagId ? ` — ${c.yagId}` : ""}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value="other">Others</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Pick your college (its YagnaTech ID is shown next to the name).
+                        Not listed? Choose <strong>Others</strong> and type your college name.
+                      </p>
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-4">
+                    {collegeChoice === "other" && (
                       <div className="space-y-2">
-                        <Label htmlFor="graduationYear">Year of Study / Graduation</Label>
+                        <Label htmlFor="collegeName">College Name</Label>
                         <Input
-                          id="graduationYear"
-                          placeholder="e.g. 2026"
-                          inputMode="numeric"
-                          maxLength={4}
-                          value={formData.graduationYear}
-                          onChange={(e) => handleInputChange("graduationYear", e.target.value)}
+                          id="collegeName"
+                          placeholder="College / Institution name"
+                          value={formData.collegeName}
+                          onChange={(e) => handleInputChange("collegeName", e.target.value)}
                           disabled={loading}
                         />
                       </div>
+                    )}
 
-                      <div className="space-y-2">
-                        <Label htmlFor="collegeCode">YagnaTech ID</Label>
-                        <Input
-                          id="collegeCode"
-                          placeholder="Enter your YagnaTech ID (e.g. AB12)"
-                          maxLength={4}
-                          value={formData.collegeCode}
-                          onChange={(e) => handleInputChange("collegeCode", e.target.value.toUpperCase())}
-                          disabled={loading}
-                          className="uppercase placeholder:normal-case"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Your college's 4-character code. Don't have one? Choose
-                          “Other” and type your college name above.
-                        </p>
-                      </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="graduationYear">Year of Study / Graduation</Label>
+                      <Input
+                        id="graduationYear"
+                        placeholder="e.g. 2026"
+                        inputMode="numeric"
+                        maxLength={4}
+                        value={formData.graduationYear}
+                        onChange={(e) => handleInputChange("graduationYear", e.target.value)}
+                        disabled={loading}
+                      />
                     </div>
                   </div>
 
