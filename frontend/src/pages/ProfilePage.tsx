@@ -730,6 +730,14 @@ const ProfilePage = () => {
                     Your previous college is no longer available. Please pick a new one.
                   </p>
                 )}
+              {/* "Others" college: the student typed a free-text college name at
+                  signup (no YagnaTech ID / collegeId). Show it so their entry is
+                  visible; they can still pick a listed college above to link one. */}
+              {!formData.college && user?.collegeName && (
+                <p className="text-sm text-gray-700">
+                  College (entered): <span className="font-medium">{user.collegeName}</span>
+                </p>
+              )}
               {isEditing && colleges.length === 0 && !formData.college && (
                 <p className="text-xs text-amber-700">
                   No colleges loaded. Ask the admin to add your college first.

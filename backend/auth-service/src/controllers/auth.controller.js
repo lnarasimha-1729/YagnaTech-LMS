@@ -155,8 +155,16 @@ async function issueTokens(user, res) {
       gender: user.gender,
       role: role ? role.role : null,
       collegeId: user.collegeId,
+      // collegeName is the free-text name for "Others" (no linked college) and
+      // also the canonical name when a YagnaTech ID resolved. Surfaced so the
+      // profile can show it even when there's no collegeId.
+      collegeName: user.collegeName,
+      collegeCode: user.collegeCode,
       orgId: user.orgId,
       branchId: user.branchId,
+      branch: user.branch,
+      educationLevel: user.educationLevel,
+      graduationYear: user.graduationYear,
       yearOfEducation: user.yearOfEducation,
       yearOfStudy: user.yearOfStudy,
       programInterested: user.programInterested
