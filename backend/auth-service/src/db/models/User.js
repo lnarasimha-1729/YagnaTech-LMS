@@ -88,9 +88,17 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING(255),
     allowNull: true
   },
-  profileStatus: { 
-    type: DataTypes.ENUM('active', 'inactive', 'pending'), 
-    defaultValue: 'pending' 
+  profileStatus: {
+    type: DataTypes.ENUM('active', 'inactive', 'pending'),
+    defaultValue: 'pending'
+  },
+  // College-admin approval of a student's signup. false until the college admin
+  // approves them in the Student Requests tab. The college dashboard only counts
+  // approved students.
+  isApproved: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
   },
   location: {
     type: DataTypes.STRING

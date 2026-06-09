@@ -37,7 +37,8 @@ const getStats = async ({ collegeId }) => {
            FROM users u
            JOIN roles r ON r.roleId = u.roleId
           WHERE LOWER(TRIM(u.collegeId)) = LOWER(:filter)
-            AND r.role = 'student'`,
+            AND r.role = 'student'
+            AND u.isApproved = 1`,
         { replacements: { filter }, type: QueryTypes.SELECT }
     );
 
@@ -295,7 +296,7 @@ const getStudentRequests = async ({ collegeId }) => {
            JOIN roles r ON r.roleId = u.roleId
           WHERE LOWER(TRIM(u.collegeId)) = LOWER(:filter)
             AND r.role = 'student'
-            AND u.profileStatus = 'pending'
+            AND (u.isApproved = 0 OR u.isApproved IS NULL)
           ORDER BY u.createdAt DESC`,
         { replacements: { filter }, type: QueryTypes.SELECT }
     );
@@ -313,11 +314,11 @@ const approveStudentRequest = async ({ collegeId, userId }) => {
     const [, meta] = await authDb.query(
         `UPDATE users u
             JOIN roles r ON r.roleId = u.roleId
-            SET u.profileStatus = 'active', u.updatedAt = NOW()
+            SET u.isApproved = 1, u.profileStatus = 'active', u.updatedAt = NOW()
           WHERE u.userId = :userId
             AND r.role = 'student'
             AND LOWER(TRIM(u.collegeId)) = LOWER(:filter)
-            AND u.profileStatus = 'pending'`,
+            AND (u.isApproved = 0 OR u.isApproved IS NULL)`,
         { replacements: { userId: String(userId), filter }, type: QueryTypes.UPDATE }
     );
     const affected = meta && typeof meta.affectedRows === 'number' ? meta.affectedRows : meta;

@@ -167,6 +167,9 @@ export async function initDb() {
     const wanted = [
       ['passwordResetToken',   'VARCHAR(128) NULL'],
       ['passwordResetExpires', 'DATETIME NULL'],
+      // College-admin approval flag. Existing students default to NOT approved;
+      // approve them via the college admin's Student Requests tab.
+      ['isApproved',           'TINYINT(1) NOT NULL DEFAULT 0'],
     ];
     for (const [field, ddl] of wanted) {
       const [col] = await sequelize.query(

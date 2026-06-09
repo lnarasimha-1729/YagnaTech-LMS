@@ -30,12 +30,18 @@ const list = async ({ page = 1, per_page = 10, search = '', college = '', batch 
             ? "AND COALESCE(c.clgName, NULLIF(TRIM(u.collegeName), '')) = :college"
             : '';
 
+        // College-scoped views (the college dashboard passes `college`) only
+        // show APPROVED students — a college admin approves signups in the
+        // Student Requests tab first. The root-admin list (no college filter)
+        // is unaffected and shows everyone.
+        const approvedClause = collegeName ? 'AND u.isApproved = 1' : '';
+
         const [{ count }] = await authDb.query(
             `SELECT COUNT(*) AS count
                FROM users u
                JOIN roles r ON r.roleId = u.roleId
                LEFT JOIN colleges c ON c.clgId = u.collegeId
-              WHERE r.role = 'student' ${searchClause} ${collegeClause}`,
+              WHERE r.role = 'student' ${searchClause} ${collegeClause} ${approvedClause}`,
             { replacements: { like, college: collegeName }, type: QueryTypes.SELECT }
         );
 
@@ -64,7 +70,7 @@ const list = async ({ page = 1, per_page = 10, search = '', college = '', batch 
                JOIN roles r ON r.roleId = u.roleId
                LEFT JOIN colleges c ON c.clgId = u.collegeId
                LEFT JOIN program_requests pr ON pr.user_id = u.userId
-              WHERE r.role = 'student' ${searchClause} ${collegeClause}
+              WHERE r.role = 'student' ${searchClause} ${collegeClause} ${approvedClause}
               ORDER BY
                   -- 1. Group same-college students together (A→Z); students
                   --    with no college fall to the very end.
