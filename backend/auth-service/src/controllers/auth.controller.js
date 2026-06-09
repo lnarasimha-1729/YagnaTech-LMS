@@ -220,15 +220,22 @@ export async function register(req, res) {
       dob: data.dob,
       gender: data.gender,
       roleId: role.roleId,
-      // Academic Information (optional — stored only if provided)
+      // Academic Information (optional — stored only if provided).
       educationLevel: data.educationLevel || null,
-      branch: data.branch || null,
       collegeName: resolvedCollegeName,
-      graduationYear: data.graduationYear || null,
       collegeCode: code || null,
       // Linked college id (resolved from the YagnaTech ID) so the profile and
       // dashboards pick it up automatically. Null for "Other" / unmatched codes.
-      collegeId: resolvedCollegeId
+      collegeId: resolvedCollegeId,
+      // Mirror branch + graduation year into BOTH the legacy columns and the
+      // columns the profile/auth payload actually read (branchId,
+      // yearOfEducation, yearOfStudy) — otherwise signup data never surfaces on
+      // the profile page.
+      branch: data.branch || null,
+      branchId: data.branch || null,                                  // STRING col
+      graduationYear: data.graduationYear || null,
+      yearOfEducation: data.graduationYear || null,                   // STRING col
+      yearOfStudy: data.graduationYear ? (Number(data.graduationYear) || null) : null // INTEGER col
     });
 
     const result = await issueTokens(user, res);
