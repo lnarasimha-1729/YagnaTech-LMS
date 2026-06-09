@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { CollegeContext } from "@/context/CollegeContext";
@@ -35,10 +35,10 @@ const Signup = () => {
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [apiSuccess, setApiSuccess] = useState<string | null>(null);
-  // College entry: by default the student types their YagnaTech ID, which we
-  // resolve to a college as they type. If they have none, they switch to
-  // "Others" and type a college name. isOther toggles between the two modes.
-  const [isOther, setIsOther] = useState(false);
+  // College dropdown selection: "other" (default) shows a free-text name box;
+  // otherwise it's the matched college's clgId (the college only appears in the
+  // dropdown once a valid YagnaTech ID is entered).
+  const [collegeChoice, setCollegeChoice] = useState<string>("other");
 
   const collegeCtx = useContext(CollegeContext);
   const colleges = collegeCtx?.colleges ?? [];
@@ -53,6 +53,14 @@ const Signup = () => {
     if (!code) return null;
     return colleges.find((c) => (c.yagId || "").toUpperCase() === code) || null;
   })();
+
+  // When a YagnaTech ID resolves to a college, auto-select it in the dropdown;
+  // when the code is cleared or stops matching, fall back to "Others".
+  useEffect(() => {
+    if (matchedCollege) setCollegeChoice(matchedCollege.clgId);
+    else setCollegeChoice("other");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchedCollege?.clgId]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -86,18 +94,16 @@ const Signup = () => {
     //  - Others -> send the typed collegeName, no code.
     let collegeCode = "";
     let collegeName = "";
-    if (isOther) {
+    if (collegeChoice === "other") {
       collegeName = formData.collegeName.trim();
       if (!collegeName) {
-        setApiError("Please enter your college name (or enter your YagnaTech ID).");
+        setApiError("Please enter your college name, or enter a valid YagnaTech ID and select your college.");
         return;
       }
     } else {
-      collegeCode = formData.collegeCode.trim();
-      if (!collegeCode) {
-        setApiError("Please enter your YagnaTech ID, or choose Others to type your college name.");
-        return;
-      }
+      // A matched college is selected — send its YagnaTech ID so the backend
+      // links collegeId + canonical name.
+      collegeCode = (matchedCollege?.yagId || formData.collegeCode).trim();
       collegeName = matchedCollege?.clgName || "";
     }
 
@@ -331,42 +337,52 @@ return (
                       />
                     </div>
 
-                    {!isOther ? (
+                    <div className="space-y-2">
+                      <Label htmlFor="collegeCode">YagnaTech ID</Label>
+                      <Input
+                        id="collegeCode"
+                        placeholder="Enter your YagnaTech ID (e.g. AB12)"
+                        maxLength={4}
+                        value={formData.collegeCode}
+                        onChange={(e) => handleInputChange("collegeCode", e.target.value.toUpperCase())}
+                        disabled={loading}
+                        className="uppercase placeholder:normal-case"
+                      />
+                      {formData.collegeCode.trim() && !matchedCollege && (
+                        <p className="text-xs text-amber-600">
+                          No college found for this YagnaTech ID. Pick “Others” below
+                          to enter your college name.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="college">College</Label>
+                      <Select
+                        value={collegeChoice}
+                        onValueChange={(value) => setCollegeChoice(value)}
+                        disabled={loading}
+                      >
+                        <SelectTrigger id="college">
+                          <SelectValue placeholder="Select your college" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {/* The matched college only appears once a valid
+                              YagnaTech ID is entered. */}
+                          {matchedCollege && (
+                            <SelectItem value={matchedCollege.clgId}>
+                              {matchedCollege.clgName}
+                              {matchedCollege.yagId ? ` — ${matchedCollege.yagId}` : ""}
+                            </SelectItem>
+                          )}
+                          <SelectItem value="other">Others</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {collegeChoice === "other" && (
                       <div className="space-y-2">
-                        <Label htmlFor="collegeCode">YagnaTech ID</Label>
-                        <Input
-                          id="collegeCode"
-                          placeholder="Enter your YagnaTech ID (e.g. AB12)"
-                          maxLength={4}
-                          value={formData.collegeCode}
-                          onChange={(e) => handleInputChange("collegeCode", e.target.value.toUpperCase())}
-                          disabled={loading}
-                          className="uppercase placeholder:normal-case"
-                        />
-                        {/* Resolve + show the matched college name as they type. */}
-                        {formData.collegeCode.trim() && (
-                          matchedCollege ? (
-                            <p className="text-xs font-medium text-[#177385]">
-                              ✓ {matchedCollege.clgName}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-amber-600">
-                              No college found for this YagnaTech ID.
-                            </p>
-                          )
-                        )}
-                        <button
-                          type="button"
-                          className="text-xs text-[#177385] underline underline-offset-2"
-                          onClick={() => { setIsOther(true); handleInputChange("collegeCode", ""); }}
-                          disabled={loading}
-                        >
-                          Don't have a YagnaTech ID? Choose Others
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <Label htmlFor="collegeName">College Name (Others)</Label>
+                        <Label htmlFor="collegeName">College Name</Label>
                         <Input
                           id="collegeName"
                           placeholder="College / Institution name"
@@ -374,14 +390,6 @@ return (
                           onChange={(e) => handleInputChange("collegeName", e.target.value)}
                           disabled={loading}
                         />
-                        <button
-                          type="button"
-                          className="text-xs text-[#177385] underline underline-offset-2"
-                          onClick={() => { setIsOther(false); handleInputChange("collegeName", ""); }}
-                          disabled={loading}
-                        >
-                          Have a YagnaTech ID? Enter it instead
-                        </button>
                       </div>
                     )}
 
