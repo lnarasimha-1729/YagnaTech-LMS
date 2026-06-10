@@ -30,11 +30,11 @@ const list = async ({ page = 1, per_page = 10, search = '', college = '', batch 
             ? "AND COALESCE(c.clgName, NULLIF(TRIM(u.collegeName), '')) = :college"
             : '';
 
-        // College-scoped views (the college dashboard passes `college`) only
-        // show APPROVED students — a college admin approves signups in the
-        // Student Requests tab first. The root-admin list (no college filter)
-        // is unaffected and shows everyone.
-        const approvedClause = collegeName ? 'AND u.isApproved = 1' : '';
+        // Only APPROVED students show in Manage Students — for BOTH the
+        // college-scoped view (college admin approves in Student Requests) and
+        // the root-admin view. Pending/unapproved signups stay out of the list
+        // until approved.
+        const approvedClause = 'AND u.isApproved = 1';
 
         const [{ count }] = await authDb.query(
             `SELECT COUNT(*) AS count
