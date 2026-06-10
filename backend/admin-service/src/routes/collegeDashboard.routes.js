@@ -11,5 +11,6 @@ router.get('/college-dashboard/programs', ctrl.programs);
 // Pending student signup requests for the caller's college + approve.
 router.get('/college-dashboard/student-requests', ctrl.studentRequests);
 router.post('/college-dashboard/student-requests/:userId/approve', ctrl.approveStudentRequest);
+router.post('/college-dashboard/student-requests/:userId/reject', ctrl.rejectStudentRequest);
 
 module.exports = router;

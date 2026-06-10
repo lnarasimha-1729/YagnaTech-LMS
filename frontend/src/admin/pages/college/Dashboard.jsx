@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { getCollegeStats, getCollegeCourses, getCollegePrograms, getStudentRequests, approveStudentRequest } from '../../api/collegeDashboard';
+import { getCollegeStats, getCollegeCourses, getCollegePrograms, getStudentRequests, approveStudentRequest, rejectStudentRequest } from '../../api/collegeDashboard';
 import { toast } from 'react-toastify';
 import { listStudents } from '../../api/student';
 import { getStoredUser } from '../../api/auth';
@@ -659,6 +659,19 @@ function StudentRequestsTable() {
         }
     };
 
+    const reject = async (userId, name) => {
+        setApprovingId(userId);
+        try {
+            await rejectStudentRequest(userId);
+            toast.success(`Rejected ${name || 'student'}`);
+            setRows((prev) => prev.filter((r) => r.userId !== userId));
+        } catch (err) {
+            toast.error(err?.response?.data?.error || 'Failed to reject');
+        } finally {
+            setApprovingId(null);
+        }
+    };
+
     return (
         <div className="ol-card rounded-ol-8">
             <div className="ol-card-body py-12px px-20px my-3">
@@ -719,14 +732,24 @@ function StudentRequestsTable() {
                                             {s.createdAt ? new Date(s.createdAt).toLocaleDateString() : '—'}
                                         </td>
                                         <td>
-                                            <button
-                                                type="button"
-                                                className="ol-btn-primary text-[12px] px-3 py-1 disabled:opacity-50"
-                                                onClick={() => approve(s.userId, s.name)}
-                                                disabled={approvingId === s.userId}
-                                            >
-                                                {approvingId === s.userId ? 'Approving…' : 'Approve'}
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    className="ol-btn-primary text-[12px] px-3 py-1 disabled:opacity-50"
+                                                    onClick={() => approve(s.userId, s.name)}
+                                                    disabled={approvingId === s.userId}
+                                                >
+                                                    {approvingId === s.userId ? 'Approving…' : 'Approve'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="text-[12px] px-3 py-1 rounded border border-red-300 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                                                    onClick={() => reject(s.userId, s.name)}
+                                                    disabled={approvingId === s.userId}
+                                                >
+                                                    Reject
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

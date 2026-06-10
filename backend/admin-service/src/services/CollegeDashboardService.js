@@ -326,10 +326,34 @@ const approveStudentRequest = async ({ collegeId, userId }) => {
     return { approved: true, userId };
 };
 
+// Reject a pending student request: unlink the student from THIS college
+// (clear collegeId so they drop off this college's Student Requests). They stay
+// unapproved and can re-select a college from their profile. Scoped to the
+// caller's college so an admin can't reject another college's students.
+const rejectStudentRequest = async ({ collegeId, userId }) => {
+    if (!collegeId) throw new HttpError(400, 'College admin profile is missing a college_id');
+    if (!userId) throw new HttpError(400, 'userId is required');
+    const filter = String(collegeId).trim();
+    const [, meta] = await authDb.query(
+        `UPDATE users u
+            JOIN roles r ON r.roleId = u.roleId
+            SET u.collegeId = NULL, u.isApproved = 0, u.updatedAt = NOW()
+          WHERE u.userId = :userId
+            AND r.role = 'student'
+            AND LOWER(TRIM(u.collegeId)) = LOWER(:filter)
+            AND (u.isApproved = 0 OR u.isApproved IS NULL)`,
+        { replacements: { userId: String(userId), filter }, type: QueryTypes.UPDATE }
+    );
+    const affected = meta && typeof meta.affectedRows === 'number' ? meta.affectedRows : meta;
+    if (!affected) throw new HttpError(404, 'No pending request found for this student in your college');
+    return { rejected: true, userId };
+};
+
 module.exports = {
     getStats,
     getCoursesForCollege,
     getProgramsForCollege,
     getStudentRequests,
     approveStudentRequest,
+    rejectStudentRequest,
 };

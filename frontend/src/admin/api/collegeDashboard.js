@@ -25,3 +25,7 @@ export const getStudentRequests = () =>
 
 export const approveStudentRequest = (userId) =>
     api.post(`/college-dashboard/student-requests/${userId}/approve`).then((r) => r.data);
+
+// Reject a pending request — unlinks the student from this college.
+export const rejectStudentRequest = (userId) =>
+    api.post(`/college-dashboard/student-requests/${userId}/reject`).then((r) => r.data);

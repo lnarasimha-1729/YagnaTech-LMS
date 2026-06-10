@@ -50,3 +50,12 @@ exports.approveStudentRequest = asyncHandler(async (req, res) => {
     }
     res.json(await service.approveStudentRequest({ collegeId, userId: req.params.userId }));
 });
+
+// Reject a pending student request (unlinks the student from this college).
+exports.rejectStudentRequest = asyncHandler(async (req, res) => {
+    const collegeId = req.user?.college_id;
+    if (!collegeId) {
+        throw new HttpError(403, 'College Dashboard is only available to college admins');
+    }
+    res.json(await service.rejectStudentRequest({ collegeId, userId: req.params.userId }));
+});
