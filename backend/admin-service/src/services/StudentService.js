@@ -434,11 +434,14 @@ const create = async (body, file) => {
     await authDb.query(
         `INSERT INTO users
             (userId, name, email, passwordHash, phone, roleId,
-             collegeId, studentPhoto, createdAt, updatedAt)
+             collegeId, studentPhoto, isApproved, createdAt, updatedAt)
          VALUES
             (:userId, :name, :email, :passwordHash, :phone, :roleId,
-             :collegeId, :studentPhoto, NOW(), NOW())`,
+             :collegeId, :studentPhoto, 1, NOW(), NOW())`,
         {
+            // isApproved = 1: students ADDED by an admin are auto-approved — they
+            // appear directly in Manage Students and never show in the college's
+            // Student Requests (which lists only self-signups awaiting approval).
             replacements: {
                 userId,
                 name: body.name,
