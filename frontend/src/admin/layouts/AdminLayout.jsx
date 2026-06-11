@@ -192,6 +192,12 @@ export default function AdminLayout() {
     // root admin as a college admin (redirecting them to /admin/college). Track
     // a tick that bumps on storage changes + a short post-mount re-read so we
     // pick up admin_user once hydration writes it.
+    // Mobile off-canvas sidebar. Hidden by default on small screens; toggled by
+    // the hamburger in the admin top bar. Closes on route change so tapping a
+    // link doesn't leave the drawer open over the content.
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    useEffect(() => { setSidebarOpen(false); }, [pathname, search]);
+
     const [storeTick, setStoreTick] = useState(0);
     useEffect(() => {
         const onStorage = (e) => { if (!e || e.key === 'admin_user' || e.key === null) setStoreTick((t) => t + 1); };
@@ -385,8 +391,49 @@ export default function AdminLayout() {
         <div className="admin-theme h-screen overflow-hidden flex flex-col bg-bodybg">
             <Navbar />
 
+            {/* Mobile-only bar with the hamburger to open the sidebar drawer.
+                Hidden from md+ where the sidebar is always visible. */}
+            <div className="md:hidden flex items-center gap-2 px-4 py-2 bg-white border-b border-border">
+                <button
+                    type="button"
+                    aria-label="Open menu"
+                    onClick={() => setSidebarOpen(true)}
+                    className="inline-flex items-center justify-center w-9 h-9 rounded-ol-8 border border-border text-dark"
+                >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+                    </svg>
+                </button>
+                <span className="text-[14px] font-semibold text-dark">Menu</span>
+            </div>
+
             <div className="flex flex-1 min-h-0">
-                <aside className="w-[260px] bg-white border-r border-border shrink-0 flex flex-col">
+                {/* Backdrop — only on mobile when the drawer is open. */}
+                {sidebarOpen && (
+                    <div
+                        className="md:hidden fixed inset-0 z-40 bg-black/40"
+                        onClick={() => setSidebarOpen(false)}
+                    />
+                )}
+                {/* Sidebar: static column on md+, off-canvas drawer on mobile. */}
+                <aside
+                    className={`bg-white border-r border-border flex flex-col
+                        md:w-[260px] md:shrink-0 md:static md:translate-x-0
+                        fixed inset-y-0 left-0 z-50 w-[260px] max-w-[80vw]
+                        transform transition-transform duration-200
+                        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
+                >
+                    {/* Close button — mobile drawer only. */}
+                    <div className="md:hidden flex justify-end px-3 pt-3">
+                        <button
+                            type="button"
+                            aria-label="Close menu"
+                            onClick={() => setSidebarOpen(false)}
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-ol-8 text-gray hover:text-dark"
+                        >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                        </button>
+                    </div>
                     <div className="flex-1 overflow-y-auto no-scrollbar px-3 pt-5 pb-8">
                         <nav className="flex flex-col gap-1">
                             {(() => {
@@ -498,7 +545,7 @@ export default function AdminLayout() {
                     lets wide content (e.g. data tables) push <main> past the
                     viewport and scroll the whole page. min-w-0 lets it shrink
                     so a page's own overflow-x container scrolls instead. */}
-                <main className="flex-1 min-w-0 overflow-y-auto no-scrollbar p-6">
+                <main className="flex-1 min-w-0 overflow-y-auto no-scrollbar p-3 sm:p-6">
                     <Outlet />
                 </main>
             </div>
