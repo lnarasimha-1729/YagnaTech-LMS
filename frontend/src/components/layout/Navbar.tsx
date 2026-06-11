@@ -125,10 +125,13 @@ const Navbar = () => {
   // left edge so it sits directly above the "Main Menu" column.
   const isAdmin = location.pathname.startsWith("/admin");
   const wrapperCls = isAdmin
-    ? "flex items-center justify-between h-16 lg:h-20 pr-4 sm:pr-6 lg:pr-8"
+    ? "flex items-center justify-between h-16 lg:h-20 px-3 sm:px-4 lg:px-6"
     : "flex items-center justify-between h-16 lg:h-20";
+  // The 260px logo slot only makes sense on md+ where the sidebar is a fixed
+  // 260px column. On mobile the sidebar is an off-canvas drawer, so the logo
+  // should just sit normally (no fixed-width slot squishing the navbar).
   const logoSlotCls = isAdmin
-    ? "w-[260px] shrink-0 flex items-center px-3"
+    ? "shrink-0 flex items-center md:w-[260px] md:px-3"
     : "";
 
   return (
@@ -144,7 +147,7 @@ const Navbar = () => {
             <img
               src={Logo}
               alt="Logo"
-              className="w-15 h-15 rounded-lg object-cover"
+              className="h-10 sm:h-12 lg:h-14 w-auto max-w-[160px] sm:max-w-none object-contain shrink-0"
             />
           </Link>
 
