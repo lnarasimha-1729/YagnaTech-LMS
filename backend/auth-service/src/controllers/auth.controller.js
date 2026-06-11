@@ -160,6 +160,9 @@ async function issueTokens(user, res) {
       // profile can show it even when there's no collegeId.
       collegeName: user.collegeName,
       collegeCode: user.collegeCode,
+      // Profile photo so the navbar avatar can render it on login.
+      instructorPhoto: user.instructorPhoto,
+      studentPhoto: user.studentPhoto,
       orgId: user.orgId,
       branchId: user.branchId,
       branch: user.branch,

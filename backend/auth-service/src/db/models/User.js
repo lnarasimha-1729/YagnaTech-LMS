@@ -88,6 +88,18 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING(255),
     allowNull: true
   },
+  // Profile photos (relative upload paths). These columns are added to the DB
+  // by admin-service's startup migration; declare them here so /me's
+  // user.toJSON() actually returns them (Sequelize omits undeclared columns) —
+  // otherwise the navbar avatar never gets the photo to display.
+  instructorPhoto: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
+  studentPhoto: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
   profileStatus: {
     type: DataTypes.ENUM('active', 'inactive', 'pending'),
     defaultValue: 'pending'
