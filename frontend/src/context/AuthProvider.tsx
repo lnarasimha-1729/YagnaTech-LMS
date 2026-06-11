@@ -32,6 +32,11 @@ const normalizeAdminProfile = (raw: any) => {
     yearOfEducation: data.yearOfEducation ?? data.year_of_education ?? undefined,
     yearOfStudy: data.yearOfStudy ?? data.year_of_study ?? undefined,
     programInterested: data.programInterested ?? data.program_interested ?? undefined,
+    // Profile photo so the navbar avatar can render it. admin-service returns
+    // `photo`; keep instructor/student variants too for the shared navbar.
+    photo: data.photo ?? undefined,
+    instructorPhoto: data.instructorPhoto ?? undefined,
+    studentPhoto: data.studentPhoto ?? undefined,
   };
 };
 
@@ -50,6 +55,9 @@ interface User {
   yearOfEducation?: string;
   yearOfStudy?: number;
   programInterested?: string;
+  photo?: string;
+  instructorPhoto?: string;
+  studentPhoto?: string;
 }
 
 interface LoginCredentials {
