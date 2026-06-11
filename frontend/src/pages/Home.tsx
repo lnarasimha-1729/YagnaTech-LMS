@@ -6,18 +6,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import RoadMap from "@/assets/RM.png"; // Adjust the path as necessary
 import Vid from "@/assets/Vid1.mp4"; // Adjust the path as necessary
 
-import { 
-  BookOpen,  
-  Award, 
-  Heart, 
-  GraduationCap, 
-  Globe, 
+import {
+  BookOpen,
+  Award,
+  Heart,
+  GraduationCap,
+  Globe,
   Target,
   ArrowRight,
   CheckCircle,
-  Star, 
+  Star,
   School,
   Building2,
+  Rocket,
+  Brain,
+  Briefcase,
+  type LucideIcon,
 } from "lucide-react";
 import { 
   FaUserEdit, FaEnvelopeOpenText, FaPencilAlt, FaListAlt,
@@ -33,7 +37,16 @@ interface HomeProgram {
   description: string;
   // Program features (JSON array in the admin model) become the card's bullets.
   bullets: string[];
+  // Admin-selected lucide icon NAME (e.g. "Rocket"); resolved to a component
+  // at render so the card shows the chosen icon (not an index-based one).
+  icon?: string;
 }
+
+// Map the admin-stored icon name to the lucide component (same curated set the
+// program form exposes). Falls back to Globe for unknown/empty.
+const HOME_ICON_BY_NAME: Record<string, LucideIcon> = {
+  Globe2: Globe, GraduationCap, Building2, Rocket, BookOpen, Brain, Briefcase, Award,
+};
 
 const Home = () => {
   // "Opportunities for Students" cards — the top 3 active programs the admin
@@ -61,6 +74,7 @@ const Home = () => {
             bullets: Array.isArray(p.features)
               ? p.features.map((f: any) => String(f).trim()).filter(Boolean)
               : [],
+            icon: p.icon ? String(p.icon) : undefined,
           })),
         );
       } catch {
@@ -385,9 +399,12 @@ const Home = () => {
 
           <div className="roadmapt grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {programs.map((action, index) => {
-              // Cycle the three original lucide icons so cards keep their
-              // visual variety regardless of how many categories an admin adds.
-              const Icon = [Globe, GraduationCap, Building2][index % 3];
+              // Use the admin-selected icon (stored as a name on the program).
+              // Fall back to cycling the original lucide icons when a program
+              // has no icon set, so older rows still show something.
+              const Icon =
+                (action.icon && HOME_ICON_BY_NAME[action.icon]) ||
+                [Globe, GraduationCap, Building2][index % 3];
               return (
               <Card
                 key={action.id}
