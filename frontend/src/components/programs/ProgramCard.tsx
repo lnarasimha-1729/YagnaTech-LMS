@@ -1,12 +1,20 @@
-import { LucideIcon, Globe2, GraduationCap, Building2, CheckCircle2 } from "lucide-react";
+import { LucideIcon, Globe2, GraduationCap, Building2, Rocket, BookOpen, Brain, Briefcase, Award, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+// Map the icon NAME string stored on the program (admin picks it in the program
+// form) to the actual lucide component. Falls back to Globe2 for unknown/empty.
+const ICON_BY_NAME: Record<string, LucideIcon> = {
+  Globe2, GraduationCap, Building2, Rocket, BookOpen, Brain, Briefcase, Award,
+};
 
 export interface Program {
   id: string | number;
   title: string;
   tagline: string;
   features: string[];
-  icon?: LucideIcon;
+  // The API returns the icon NAME (string). A LucideIcon component is also
+  // accepted for callers that pass one directly.
+  icon?: LucideIcon | string;
 }
 
 interface ProgramCardProps {
@@ -22,7 +30,11 @@ interface ProgramCardProps {
 export const programIconByIndex: LucideIcon[] = [Globe2, GraduationCap, Building2];
 
 const ProgramCard = ({ program, onView, ctaLabel = "Start", disabled = false, disabledLabel }: ProgramCardProps) => {
-  const Icon = program.icon ?? Globe2;
+  // icon may be a NAME string (from the API) or a component (direct callers).
+  const Icon: LucideIcon =
+    typeof program.icon === "string"
+      ? (ICON_BY_NAME[program.icon] ?? Globe2)
+      : (program.icon ?? Globe2);
   return (
     <div className={`rounded-2xl border-2 border-emerald-200 bg-white p-8 flex flex-col items-center text-center shadow-sm transition-shadow ${disabled ? "opacity-50 grayscale" : "hover:shadow-md"}`}>
       <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 text-white flex items-center justify-center mb-5">
