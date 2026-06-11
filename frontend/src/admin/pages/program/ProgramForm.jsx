@@ -3,19 +3,20 @@ import CollegeMultiSelect from '../../components/CollegeMultiSelect';
 import CourseMultiSelect from '../../components/CourseMultiSelect';
 import BatchMultiSelect from '../../components/BatchMultiSelect';
 import { listCourses } from '../../api/course';
+import { Globe2, GraduationCap, Building2, Rocket, BookOpen, Brain, Briefcase, Award } from 'lucide-react';
 
 // Curated icon set to match the existing public ProgramCard renderer
-// (frontend/src/components/programs/ProgramCard.tsx uses lucide-react). Any
-// string value also works at the API layer — this is just the admin picker.
+// (frontend/src/components/programs/ProgramCard.tsx uses lucide-react). The
+// stored value is the lucide name; the admin picks from rendered glyphs.
 const ICON_OPTIONS = [
-    'Globe2',
-    'GraduationCap',
-    'Building2',
-    'Rocket',
-    'BookOpen',
-    'Brain',
-    'Briefcase',
-    'Award',
+    { name: 'Globe2', Icon: Globe2 },
+    { name: 'GraduationCap', Icon: GraduationCap },
+    { name: 'Building2', Icon: Building2 },
+    { name: 'Rocket', Icon: Rocket },
+    { name: 'BookOpen', Icon: BookOpen },
+    { name: 'Brain', Icon: Brain },
+    { name: 'Briefcase', Icon: Briefcase },
+    { name: 'Award', Icon: Award },
 ];
 
 export default function ProgramForm({ initial = {}, onSubmit, submitting = false }) {
@@ -202,17 +203,28 @@ export default function ProgramForm({ initial = {}, onSubmit, submitting = false
             <div className="grid grid-cols-12 gap-3 mb-3">
                 <div className="col-span-12 md:col-span-8">
                     <label className="ol-form-label">Icon</label>
-                    <select
-                        className="ol-form-control"
-                        value={form.icon}
-                        onChange={(e) => set('icon', e.target.value)}
-                    >
-                        {ICON_OPTIONS.map((name) => (
-                            <option key={name} value={name}>{name}</option>
-                        ))}
-                    </select>
+                    <div className="flex flex-wrap gap-2">
+                        {ICON_OPTIONS.map(({ name, Icon }) => {
+                            const selected = form.icon === name;
+                            return (
+                                <button
+                                    key={name}
+                                    type="button"
+                                    title={name}
+                                    onClick={() => set('icon', name)}
+                                    className={`flex items-center justify-center w-11 h-11 rounded-ol-8 border transition-colors ${
+                                        selected
+                                            ? 'border-skin bg-lightgreen text-skin'
+                                            : 'border-ebordermuted text-gray hover:border-skin hover:text-skin'
+                                    }`}
+                                >
+                                    <Icon className="w-5 h-5" />
+                                </button>
+                            );
+                        })}
+                    </div>
                     <p className="text-[12px] text-gray mt-1">
-                        Lucide icon name. The card on the public site renders this glyph above the title.
+                        Pick the glyph shown above the program title on the public site.
                     </p>
                 </div>
                 <div className="col-span-12 md:col-span-4">
