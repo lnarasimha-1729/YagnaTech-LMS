@@ -455,6 +455,12 @@ app.use('/api/admin', auth, curriculumRoutes);
 // routers above it must sit in the auth-only block — an earlier adminOnly mount
 // would 403 an instructor before the request could fall through to it.
 app.use('/api/admin', auth, quizRoutes);
+// Read-only batch-name lookup (resolves batch_ids -> names for the Manage
+// Courses "Batches" column). Instructors see this column too, but the full
+// batchRoutes below is adminOnly — so expose just this lookup with
+// adminOrInstructor here, before the adminOnly batch mount can 403 them.
+const batchCtrl = require('./controllers/BatchController');
+app.get('/api/admin/batches/by-colleges', auth, adminOrInstructor, batchCtrl.byColleges);
 app.use('/api/admin', auth, zoomLiveClassRoutes.admin);
 app.use('/api/public', zoomLiveClassRoutes.public);
 app.use('/api/admin', auth, forumRoutes.admin);
