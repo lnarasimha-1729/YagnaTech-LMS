@@ -86,20 +86,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Hydrate from cookie or saved admin token on app load.
+  // Hydrate from saved admin token OR auth cookie on app load.
+  //
+  // IMPORTANT: when an admin_token exists, the ADMIN session is authoritative —
+  // resolve it via adminMe() FIRST. Previously getProfile() (the auth-service
+  // cookie) was tried first; a stale cookie left over from a prior root-admin
+  // login on the same browser would resolve to the ROOT admin's identity even
+  // though the person logged in as a college admin/instructor — so the sidebar
+  // (from admin_user) was right but the navbar/profile (from user) showed the
+  // wrong person.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     (async () => {
-      try {
-        const res = await getProfile();
-        if (cancelled) return;
-        setUser(res.data);
-        const idForStorage = extractUserId(res.data);
-        if (idForStorage) localStorage.setItem("userId", String(idForStorage));
-        return;
-      } catch {
-        if (!getAdminToken()) return;
+      // 1. Admin/instructor/college-admin session (admin_token) takes priority.
+      if (getAdminToken()) {
         try {
           const res = await adminMe();
           if (cancelled) return;
@@ -107,13 +108,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUser(profile);
           const idForStorage = extractUserId(profile);
           if (idForStorage) localStorage.setItem("userId", String(idForStorage));
-          // Store the unwrapped user (not the {user: ...} envelope) — that's
-          // the shape AdminLayout's getStoredUser() reads to decide whether to
-          // show the college-admin sidebar.
+          // Store the unwrapped user (the shape AdminLayout.getStoredUser reads).
           localStorage.setItem("admin_user", JSON.stringify(res?.user ?? res));
+          return;
         } catch {
-          /* not logged in — fine, render the public site */
+          // admin_token invalid/expired — fall through to the auth cookie.
+        } finally {
+          if (!cancelled && getAdminToken()) setLoading(false);
         }
+      }
+      // 2. Otherwise, fall back to the auth-service cookie (students etc.).
+      try {
+        const res = await getProfile();
+        if (cancelled) return;
+        setUser(res.data);
+        const idForStorage = extractUserId(res.data);
+        if (idForStorage) localStorage.setItem("userId", String(idForStorage));
+      } catch {
+        /* not logged in — fine, render the public site */
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -124,30 +136,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Manual auth check - only call this when needed
   const checkAuth = async () => {
+    setLoading(true);
+    // Admin session (admin_token) is authoritative — resolve it first so a
+    // stale auth cookie can't override the logged-in admin's identity.
+    if (getAdminToken()) {
+      try {
+        const res = await adminMe();
+        const profile = normalizeAdminProfile(res);
+        setUser(profile);
+        const idForStorage = extractUserId(profile);
+        if (idForStorage) localStorage.setItem("userId", String(idForStorage));
+        localStorage.setItem("admin_user", JSON.stringify(res?.user ?? res));
+        setLoading(false);
+        return;
+      } catch {
+        // admin_token invalid/expired — fall through to the auth cookie.
+      }
+    }
     try {
-      setLoading(true);
       const res = await getProfile();
       setUser(res.data);
       const idForStorage = extractUserId(res.data);
       if (idForStorage) localStorage.setItem("userId", String(idForStorage));
       return;
     } catch (err: unknown) {
-      if (getAdminToken()) {
-        try {
-          const res = await adminMe();
-          const profile = normalizeAdminProfile(res);
-          setUser(profile);
-          const idForStorage = extractUserId(profile);
-          if (idForStorage) localStorage.setItem("userId", String(idForStorage));
-          // Store the unwrapped user (not the {user: ...} envelope) — that's
-          // the shape AdminLayout's getStoredUser() reads to decide whether to
-          // show the college-admin sidebar.
-          localStorage.setItem("admin_user", JSON.stringify(res?.user ?? res));
-          return;
-        } catch {
-          // swallow and fall through to clear user
-        }
-      }
 
       // Silently handle 401 - normal when not logged in
       interface ErrorWithResponse {
@@ -239,6 +251,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem("userId");
       localStorage.removeItem("accessToken");
       localStorage.removeItem("refreshToken");
+      // Clear the admin session too, otherwise a stale admin_token/admin_user
+      // from a prior login (e.g. root admin) leaks into the next person's
+      // session on the same browser.
+      localStorage.removeItem("admin_token");
+      localStorage.removeItem("admin_user");
       setLoading(false);
     }
   };
