@@ -186,10 +186,24 @@ function isGroupActive(group, pathname, search = '') {
 export default function AdminLayout() {
     const { pathname, search } = useLocation();
     const navigate = useNavigate();
-    // Read localStorage once per mount. getStoredUser() does JSON.parse, which
-    // returns a fresh object every call — referencing it inline on every
-    // render caused downstream effects to see "new" deps and re-fire.
-    const adminUser = useMemo(() => getStoredUser(), []);
+    // Read admin_user reactively. On a hard refresh, AdminLayout can mount
+    // BEFORE AuthProvider's async adminMe() repopulates admin_user — reading it
+    // only once per mount then saw a stale/empty value and mis-classified the
+    // root admin as a college admin (redirecting them to /admin/college). Track
+    // a tick that bumps on storage changes + a short post-mount re-read so we
+    // pick up admin_user once hydration writes it.
+    const [storeTick, setStoreTick] = useState(0);
+    useEffect(() => {
+        const onStorage = (e) => { if (!e || e.key === 'admin_user' || e.key === null) setStoreTick((t) => t + 1); };
+        window.addEventListener('storage', onStorage);
+        // Re-read shortly after mount to catch AuthProvider's async write in
+        // this same tab (the 'storage' event only fires for OTHER tabs).
+        const t1 = setTimeout(() => setStoreTick((t) => t + 1), 150);
+        const t2 = setTimeout(() => setStoreTick((t) => t + 1), 600);
+        return () => { window.removeEventListener('storage', onStorage); clearTimeout(t1); clearTimeout(t2); };
+    }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const adminUser = useMemo(() => getStoredUser(), [storeTick]);
 
     // Routing rule: only the explicit root admin sees the full sidebar. Every
     // other admin — whether they have a college_id or not — is treated as a
@@ -243,6 +257,11 @@ export default function AdminLayout() {
             }
             return;
         }
+        // Don't classify/redirect until admin_user is actually loaded. On a
+        // hard refresh AuthProvider writes it asynchronously; acting on the
+        // empty/stale value would mis-redirect the ROOT admin (no role yet =>
+        // treated as college admin) to /admin/college.
+        if (!adminUser || !adminUser.role) return;
         if (!isCollegeAdmin) return;
         if (pathname.startsWith('/admin/college')) return;
         // Manage Profile is available to every admin role, so don't bounce a
@@ -250,7 +269,7 @@ export default function AdminLayout() {
         if (pathname === '/admin/profile') return;
         // Avoid redundant navigate() calls — only redirect when actually off-route.
         navigate('/admin/college', { replace: true });
-    }, [isInstructor, isCollegeAdmin, pathname, navigate]);
+    }, [isInstructor, isCollegeAdmin, adminUser, pathname, navigate]);
 
     const handleLogout = async () => {
         await adminLogout();
