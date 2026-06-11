@@ -450,6 +450,11 @@ app.use('/api/admin', authRoutes);
 app.use('/api/admin', auth, categoryRoutes);
 app.use('/api/admin', auth, courseRoutes);
 app.use('/api/admin', auth, curriculumRoutes);
+// quizRoutes self-gates per route (adminOrInstructor for authoring, adminOnly
+// for results) so instructors can add quizzes in the Curriculum tab. Like the
+// routers above it must sit in the auth-only block — an earlier adminOnly mount
+// would 403 an instructor before the request could fall through to it.
+app.use('/api/admin', auth, quizRoutes);
 app.use('/api/admin', auth, zoomLiveClassRoutes.admin);
 app.use('/api/public', zoomLiveClassRoutes.public);
 app.use('/api/admin', auth, forumRoutes.admin);
@@ -467,7 +472,6 @@ app.use('/api/admin', auth, collegeRoutes);
 // Protected admin endpoints — adminOnly enforces JWT + role (admin OR root).
 // College-scoped surfaces a college admin legitimately uses; the service layer
 // scopes results by req.user.college_id where applicable.
-app.use('/api/admin', adminOnly, quizRoutes);
 app.use('/api/admin', adminOnly, liveClassRoutes);
 app.use('/api/admin', adminOnly, couponRoutes);
 app.use('/api/admin', adminOnly, programRoutes);
