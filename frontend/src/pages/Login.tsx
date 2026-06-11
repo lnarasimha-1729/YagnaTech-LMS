@@ -128,6 +128,15 @@ const Login = () => {
         }
       }
 
+      // Pure student (not instructor, not admin): make sure no admin session
+      // tokens linger from the losing admin race or a prior login on this
+      // browser, so a student's localStorage only holds auth-service tokens.
+      if (loggedInUser.role !== "admin") {
+        await adminPromise.catch(() => {});
+        localStorage.removeItem("admin_token");
+        localStorage.removeItem("admin_user");
+      }
+
       // role==='root' is the source of truth; is_root_admin kept as a fallback
       // for older tokens. (auth-service winners are college admins anyway.)
       const isRootAdmin =
@@ -140,6 +149,15 @@ const Login = () => {
     if (winner?.kind === 'admin') {
       const adminUser: { college_id?: string | null; role?: string; is_root_admin?: boolean } =
         winner.bridge?.user || {};
+      // The admin session won. The auth-service race may ALSO have succeeded in
+      // the background (same email exists in both stores). Wait for it to settle
+      // first, THEN strip its tokens — otherwise a late accessToken write lands
+      // after our cleanup and a stale token resolves to the wrong identity on
+      // refresh. An admin's localStorage should only hold the admin session.
+      await authPromise.catch(() => {});
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("userId");
       const isRootAdmin = adminUser.role === "root" || adminUser.is_root_admin === true;
       const landing = isRootAdmin ? "/admin/dashboard" : "/admin/college";
       navigate(landing, { replace: true });
