@@ -39,7 +39,14 @@ const Navbar = () => {
 
   const isActive = (path) => location.pathname === path;
 
-  const dashboardPath = user?.role === "admin" ? "/admin/dashboard" : "/dashboard";
+  // Root + college admins both land on the admin shell. College admins use the
+  // college dashboard; root uses the admin dashboard. Only true non-admins go
+  // to the student /dashboard. (Previously only 'admin' was checked, so the
+  // root admin was sent to the student dashboard.)
+  const isAdminRole = user?.role === "admin" || user?.role === "root";
+  const dashboardPath = isAdminRole
+    ? (user?.role === "admin" && user?.collegeId ? "/admin/college" : "/admin/dashboard")
+    : "/dashboard";
 
   // Instructors have no dashboard surface — only the courses they manage. For
   // them the top-right menu shows "Profile" pointing to the Manage Profile
