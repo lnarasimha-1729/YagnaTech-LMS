@@ -121,7 +121,7 @@ const App = () => (
             <Route
               path="/admindashboard"
               element={
-                <ProtectedRoute requiredRole="admin">
+                <ProtectedRoute requiredRole={["root", "admin"]}>
                   <Layout>
                     <AdminDashboard />
                   </Layout>
@@ -134,7 +134,7 @@ const App = () => (
             <Route
               path="/admin"
               element={
-                <ProtectedRoute requiredRole={["admin", "instructor"]}>
+                <ProtectedRoute requiredRole={["root", "admin", "instructor"]}>
                   <AdminAppLayout />
                 </ProtectedRoute>
               }
@@ -173,7 +173,7 @@ const App = () => (
             <Route
               path="/admin/certificate/builder"
               element={
-                <ProtectedRoute requiredRole="admin">
+                <ProtectedRoute requiredRole={["root", "admin"]}>
                   <AdminCertificateBuilder />
                 </ProtectedRoute>
               }
