@@ -44,11 +44,14 @@ export default function ManageProfile() {
 
         setSavingProfile(true);
         try {
-            await updateProfile(form, photoFile);
+            const res = await updateProfile(form, photoFile);
             // Keep the cached user in sync with the edit so a page reload
             // re-prefills the form without needing a fresh login. Mirror both
             // schema shapes (instructor: expertise/bio/linkedinUrl; admin:
             // biography/linkedin) so whichever the prefill reads is set.
+            // Also persist the new photo path (returned by updateProfile) under
+            // all the keys the navbar/avatar might read, so the avatar updates.
+            const newPhoto = res?.photo ?? undefined;
             patchStoredUser({
                 name: form.name.trim(),
                 email: form.email.trim(),
@@ -59,9 +62,14 @@ export default function ManageProfile() {
                 expertise: form.expertise,
                 biography: form.biography,
                 bio: form.biography,
+                ...(newPhoto ? { photo: newPhoto, instructorPhoto: newPhoto, studentPhoto: newPhoto } : {}),
             });
             setProfileSuccess('Profile updated successfully.');
             setPhotoFile(null);
+            // The top navbar reads the user from useAuth (/me), which won't
+            // reflect the new photo until it re-fetches. A soft reload is the
+            // most reliable way to refresh every consumer of the avatar.
+            if (newPhoto) setTimeout(() => window.location.reload(), 600);
         } catch (err) {
             setProfileError(err?.response?.data?.error || 'Failed to update profile.');
         } finally {

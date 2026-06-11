@@ -55,6 +55,21 @@ const Navbar = () => {
     .join("")
     .toUpperCase();
 
+  // Profile photo for the avatar. Uploaded photos are stored as relative paths
+  // (instructorPhoto / studentPhoto / photo) served by admin-service /uploads,
+  // so prefix the admin base. Absolute URLs (already http) pass through.
+  const ADMIN_BASE = (import.meta.env.VITE_ADMIN_API_URL as string) || "http://localhost:4000";
+  const rawPhoto =
+    (user as any)?.instructorPhoto ||
+    (user as any)?.studentPhoto ||
+    (user as any)?.photo ||
+    "";
+  const photoUrl = rawPhoto
+    ? (/^https?:\/\//i.test(rawPhoto)
+        ? rawPhoto
+        : `${ADMIN_BASE.replace(/\/$/, "")}/${String(rawPhoto).replace(/^\/+/, "")}`)
+    : "";
+
   const handleLogout = async () => {
     setIsProfileOpen(false);
     try { await adminLogout(); } catch { /* ignore */ }
@@ -197,9 +212,18 @@ const Navbar = () => {
                     variant="ghost"
                     className="flex items-center space-x-2 px-2 py-1 rounded-full hover:bg-secondary/50"
                   >
-                    <span className="w-9 h-9 rounded-full bg-gradient-hero text-white text-sm font-semibold flex items-center justify-center">
-                      {initials}
-                    </span>
+                    {photoUrl ? (
+                      <img
+                        src={photoUrl}
+                        alt=""
+                        className="w-9 h-9 rounded-full object-cover"
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <span className="w-9 h-9 rounded-full bg-gradient-hero text-white text-sm font-semibold flex items-center justify-center">
+                        {initials}
+                      </span>
+                    )}
                     <span className="text-sm font-medium text-foreground max-w-[140px] truncate">
                       {user.name || user.email}
                     </span>
@@ -309,9 +333,18 @@ const Navbar = () => {
                 {user ? (
                   <>
                     <div className="flex items-center gap-3 px-3 py-2 border-t border-border/50 pt-4">
-                      <span className="w-10 h-10 rounded-full bg-gradient-hero text-white text-sm font-semibold flex items-center justify-center">
-                        {initials}
-                      </span>
+                      {photoUrl ? (
+                        <img
+                          src={photoUrl}
+                          alt=""
+                          className="w-10 h-10 rounded-full object-cover"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      ) : (
+                        <span className="w-10 h-10 rounded-full bg-gradient-hero text-white text-sm font-semibold flex items-center justify-center">
+                          {initials}
+                        </span>
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-foreground truncate">
                           {user.name || user.email}
